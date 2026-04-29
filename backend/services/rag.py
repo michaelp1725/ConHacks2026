@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import json
 import re
 from urllib.parse import quote_plus
+from collections.abc import Iterator
 
 import snowflake.connector
 from dotenv import load_dotenv
@@ -47,6 +48,12 @@ class RetrievedCitation:
 @dataclass
 class RAGResult:
     answer: str
+    citations: list[RetrievedCitation]
+
+
+@dataclass
+class RAGPreparedQuery:
+    prompt: str
     citations: list[RetrievedCitation]
 
 
@@ -103,6 +110,13 @@ class SnowflakeRAGService:
             raise RuntimeError("RAG_TOP_K must be a positive integer.")
 
     def query(self, question: str) -> RAGResult:
+        prepared = self.prepare_query(question)
+        raw_answer = str(self.llm.invoke(prepared.prompt).content)
+        answer = self._with_references(raw_answer, prepared.citations)
+
+        return RAGResult(answer=answer, citations=prepared.citations)
+
+    def prepare_query(self, question: str) -> RAGPreparedQuery:
         rows = self._retrieve_similar_rows(question)
         citations = [self._to_citation(row) for row in rows]
         context, source_list = self._build_grounded_context(rows, citations)
@@ -111,10 +125,16 @@ class SnowflakeRAGService:
             source_list=source_list,
             question=question,
         )
-        raw_answer = str(self.llm.invoke(prompt).content)
-        answer = self._with_references(raw_answer, citations)
+        return RAGPreparedQuery(prompt=prompt, citations=citations)
 
-        return RAGResult(answer=answer, citations=citations)
+    def stream_answer(self, prompt: str) -> Iterator[str]:
+        for chunk in self.llm.stream(prompt):
+            content = chunk.content
+            if isinstance(content, str) and content:
+                yield content
+
+    def finalize_answer(self, answer: str, citations: list[RetrievedCitation]) -> str:
+        return self._with_references(answer, citations)
 
     def _with_references(self, answer: str, citations: list[RetrievedCitation]) -> str:
         clean_answer = answer.strip()
