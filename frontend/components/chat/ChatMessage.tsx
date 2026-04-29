@@ -1,4 +1,5 @@
 import { ChatMessage as ChatMessageType } from "@/types/chat";
+import ReactMarkdown from "react-markdown";
 
 type ChatMessageProps = {
   message: ChatMessageType;
@@ -16,7 +17,13 @@ export function ChatMessage({ message }: ChatMessageProps) {
             : "border border-slate-200 bg-white text-slate-800"
         }`}
       >
-        <p className="whitespace-pre-wrap leading-7">{message.content}</p>
+        {isUser ? (
+          <p className="whitespace-pre-wrap leading-7">{message.content}</p>
+        ) : (
+          <div className="prose prose-sm max-w-none whitespace-pre-wrap leading-7 prose-a:text-blue-700 hover:prose-a:text-blue-800">
+            <ReactMarkdown>{message.content}</ReactMarkdown>
+          </div>
+        )}
 
         {!isUser && message.citations && message.citations.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
