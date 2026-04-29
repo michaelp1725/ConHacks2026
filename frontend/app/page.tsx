@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ChatMessage } from "@/components/chat/ChatMessage";
-import { sendChatQuery } from "@/lib/api";
+import { streamChatQuery } from "@/lib/api";
 import { ChatMessage as ChatMessageType } from "@/types/chat";
 
 export default function Home() {
@@ -12,11 +12,36 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const streamMessageIdRef = useRef<string | null>(null);
+  const pendingTokenBufferRef = useRef("");
+  const flushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
+  const flushPendingTokens = () => {
+    const messageId = streamMessageIdRef.current;
+    const pendingChunk = pendingTokenBufferRef.current;
+    if (!messageId || !pendingChunk) {
+      return;
+    }
+
+    pendingTokenBufferRef.current = "";
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === messageId
+          ? { ...message, content: `${message.content}${pendingChunk}` }
+          : message,
+      ),
+    );
+  };
+
+  const clearStreamBuffering = () => {
+    flushPendingTokens();
+    if (flushIntervalRef.current) {
+      clearInterval(flushIntervalRef.current);
+      flushIntervalRef.current = null;
+    }
+    streamMessageIdRef.current = null;
+    pendingTokenBufferRef.current = "";
+  };
 
   const handleSubmit = async () => {
     if (!query.trim() || isLoading) {
@@ -30,27 +55,53 @@ export default function Home() {
     };
 
     const outgoingQuery = query.trim();
+    const assistantMessageId = crypto.randomUUID();
+    streamMessageIdRef.current = assistantMessageId;
+    pendingTokenBufferRef.current = "";
+    if (flushIntervalRef.current) {
+      clearInterval(flushIntervalRef.current);
+    }
+    flushIntervalRef.current = setInterval(flushPendingTokens, 40);
     setQuery("");
     setError(null);
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [
+      ...prev,
+      userMessage,
+      {
+        id: assistantMessageId,
+        role: "assistant",
+        content: "",
+        citations: [],
+      },
+    ]);
     setIsLoading(true);
 
     try {
-      const response = await sendChatQuery(outgoingQuery);
-      const assistantMessage: ChatMessageType = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: response.answer,
-        citations: response.citations,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+      await streamChatQuery(outgoingQuery, {
+        onToken: (token) => {
+          pendingTokenBufferRef.current += token;
+        },
+        onCitations: (citations) => {
+          flushPendingTokens();
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantMessageId ? { ...message, citations } : message,
+            ),
+          );
+        },
+      });
     } catch (submissionError) {
       const fallbackError =
         submissionError instanceof Error
           ? submissionError.message
           : "Unable to reach the backend service.";
       setError(fallbackError);
+      clearStreamBuffering();
+      setMessages((prev) =>
+        prev.filter((message) => message.id !== assistantMessageId),
+      );
     } finally {
+      clearStreamBuffering();
       setIsLoading(false);
     }
   };
@@ -98,7 +149,6 @@ export default function Home() {
               {error}
             </div>
           )}
-          <div ref={bottomRef} />
         </section>
 
         <div className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-slate-100/95 px-4 py-3 backdrop-blur">
