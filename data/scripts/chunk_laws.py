@@ -1,0 +1,42 @@
+import json
+import uuid
+import pandas as pd
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+
+def chunk_laws():
+    print("Reading laws_clean.parquet...")
+    df = pd.read_parquet("data/parquets/laws_clean.parquet")
+    print(f"Laws to chunk: {len(df)}")
+
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=512,
+        chunk_overlap=50,
+        length_function=len,
+    )
+
+    chunks = []
+    for _, row in df.iterrows():
+        splits = splitter.split_text(row["unofficial_text_en"])
+        for split in splits:
+            chunks.append({
+                "ID": str(uuid.uuid4()),
+                "TEXT": split,
+                "METADATA": json.dumps({
+                    "citation": row["citation_en"],
+                    "url": row["source_url_en"],
+                    "document_date": str(row["document_date_en"]),
+                    "dataset": row["dataset"],
+                    "name": row["name_en"],
+                }),
+            })
+
+    chunks_df = pd.DataFrame(chunks)
+    print(f"Total chunks: {len(chunks_df)}")
+
+    chunks_df.to_parquet("data/parquets/law_chunks.parquet", index=False)
+    print("Saved to data/parquets/law_chunks.parquet")
+
+
+if __name__ == "__main__":
+    chunk_laws()

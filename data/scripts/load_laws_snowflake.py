@@ -6,18 +6,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-TABLE_NAME = "REFUGEE_CASE_CHUNKS"
-
-CREATE_TABLE_SQL = f"""
-CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-    ID VARCHAR,
-    TEXT VARCHAR,
-    METADATA VARIANT
-)
-"""
+TABLE_NAME = "LAWS_CHUNKS"
 
 CORTEX_SEARCH_SQL = f"""
-CREATE OR REPLACE CORTEX SEARCH SERVICE REFUGEE_SEARCH
+CREATE OR REPLACE CORTEX SEARCH SERVICE LAWS_SEARCH
   ON TEXT
   ATTRIBUTES METADATA_STR
   WAREHOUSE = '{os.getenv("SNOWFLAKE_WAREHOUSE")}'
@@ -40,9 +32,9 @@ def get_connection():
     )
 
 
-def load_snowflake():
-    print("Reading chunks.parquet...")
-    df = pd.read_parquet("data/parquets/chunks.parquet")
+def load_laws_snowflake():
+    print("Reading law_chunks.parquet...")
+    df = pd.read_parquet("data/parquets/law_chunks.parquet")
     print(f"Chunks to upload: {len(df)}")
 
     print("Connecting to Snowflake...")
@@ -50,7 +42,13 @@ def load_snowflake():
     cur = conn.cursor()
 
     print("Creating table if not exists...")
-    cur.execute(CREATE_TABLE_SQL)
+    cur.execute(f"""
+        CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
+            ID VARCHAR,
+            TEXT VARCHAR,
+            METADATA VARIANT
+        )
+    """)
 
     print("Uploading chunks...")
     _, nchunks, nrows, _ = write_pandas(conn, df, TABLE_NAME)
@@ -66,4 +64,4 @@ def load_snowflake():
 
 
 if __name__ == "__main__":
-    load_snowflake()
+    load_laws_snowflake()
