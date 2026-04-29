@@ -64,6 +64,7 @@ class RetrievedCitation:
     url: str
     relevance_score: float
     source_type: str  # "case" or "law"
+    label: str = ""  # "S1", "S2", etc. — set after filtering
 
 
 @dataclass
@@ -198,35 +199,39 @@ class SnowflakeRAGService:
         try:
             data = json.loads(text)
         except json.JSONDecodeError:
+            used_citations = self._filter_used_citations(raw, citations)
             return RAGResult(
-                explanation=self._append_references(raw, citations),
+                explanation=raw,
                 checklist=[],
                 next_steps=[],
                 disclaimer=_FALLBACK_DISCLAIMER,
-                citations=citations,
+                citations=used_citations,
                 route=route,
             )
 
-        explanation = self._append_references(data.get("explanation", ""), citations)
+        raw_explanation = data.get("explanation", "")
+        used_citations = self._filter_used_citations(raw_explanation, citations)
+        explanation = raw_explanation
         return RAGResult(
             explanation=explanation,
             checklist=data.get("checklist") or [],
             next_steps=data.get("next_steps") or [],
             disclaimer=data.get("disclaimer") or _FALLBACK_DISCLAIMER,
-            citations=citations,
+            citations=used_citations,
             route=route,
         )
 
-    def _append_references(self, explanation: str, citations: list[RetrievedCitation]) -> str:
-        clean = re.sub(r"\[\d+(?:\s*-\s*\d+)?\]", "", explanation).strip()
-        reference_lines = [
-            f"- [{c.case_name}]({c.url}) [S{i}]"
-            for i, c in enumerate(citations, start=1)
-            if c.url
-        ]
-        if not reference_lines or "references:" in clean.lower():
-            return clean
-        return f"{clean}\n\nReferences:\n" + "\n".join(reference_lines)
+    @staticmethod
+    def _filter_used_citations(
+        explanation: str, citations: list[RetrievedCitation]
+    ) -> list[RetrievedCitation]:
+        used_indices = {int(m) for m in re.findall(r"\[S(\d+)\]", explanation)}
+        result = []
+        for i, c in enumerate(citations, start=1):
+            if i in used_indices:
+                c.label = f"S{i}"
+                result.append(c)
+        return result
 
     def _build_grounded_context(
         self,

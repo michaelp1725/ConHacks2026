@@ -37,7 +37,7 @@ def chat(payload: ChatRequest) -> ChatResponse:
 
     result = rag_service.query(payload.query)
     citations = [
-        Citation(case_name=c.case_name, url=c.url, relevance_score=c.relevance_score, source_type=c.source_type)
+        Citation(case_name=c.case_name, url=c.url, relevance_score=c.relevance_score, source_type=c.source_type, label=c.label)
         for c in result.citations
     ]
     return ChatResponse(

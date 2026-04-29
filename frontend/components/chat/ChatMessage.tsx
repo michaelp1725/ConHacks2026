@@ -94,7 +94,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                     className={`rounded-full border px-3 py-1 text-xs transition ${color}`}
                     title={citation.case_name}
                   >
-                    {citation.case_name}
+                    [{citation.label}] {citation.case_name}
                   </a>
                 ));
               return (

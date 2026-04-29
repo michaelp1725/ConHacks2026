@@ -10,6 +10,7 @@ class Citation(BaseModel):
     url: str
     relevance_score: float
     source_type: str  # "case" or "law"
+    label: str  # "S1", "S2", etc.
 
 
 class ChatResponse(BaseModel):

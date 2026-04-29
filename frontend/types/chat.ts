@@ -3,6 +3,7 @@ export type Citation = {
   url: string;
   relevance_score: number;
   source_type: "case" | "law";
+  label: string;
 };
 
 export type ChatApiResponse = {
