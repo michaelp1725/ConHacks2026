@@ -37,11 +37,14 @@ def chat(payload: ChatRequest) -> ChatResponse:
 
     result = rag_service.query(payload.query)
     citations = [
-        Citation(
-            case_name=citation.case_name,
-            url=citation.url,
-            relevance_score=citation.relevance_score,
-        )
-        for citation in result.citations
+        Citation(case_name=c.case_name, url=c.url, relevance_score=c.relevance_score)
+        for c in result.citations
     ]
-    return ChatResponse(answer=result.answer, citations=citations)
+    return ChatResponse(
+        explanation=result.explanation,
+        checklist=result.checklist,
+        next_steps=result.next_steps,
+        disclaimer=result.disclaimer,
+        citations=citations,
+        route=result.route,
+    )

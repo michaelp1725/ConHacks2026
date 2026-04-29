@@ -12,5 +12,9 @@ class Citation(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    answer: str
+    explanation: str
+    checklist: list[str]
+    next_steps: list[str]
+    disclaimer: str
     citations: list[Citation]
+    route: str

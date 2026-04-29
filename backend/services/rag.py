@@ -9,20 +9,30 @@ from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+from backend.services.classifier import QueryClassifier, QueryRoute
+
 
 SYSTEM_PROMPT = PromptTemplate.from_template(
     """You are a legal research assistant for Canadian refugee law.
+You are helping self-represented litigants (SRLs) — people navigating the refugee system without a lawyer.
 Answer ONLY using the context and source list below.
 
 Rules:
-1) Do not use outside knowledge.
-2) If context is insufficient, say: "I do not have enough information in the provided cases."
-3) Keep answers concise and professional.
-4) Do NOT output bare bracket citations like [56] or [12-13].
-5) Use source markers [S1], [S2], etc. in the explanation for factual claims.
-6) End with a "References" section using markdown links in this exact style:
-   - [Case Name](https://example.com) [S1]
-7) Only include references that appear in the provided Source List.
+1) Do not use outside knowledge. If context is insufficient, say so in the explanation field.
+2) Keep answers concise and professional.
+3) Do NOT output bare bracket citations like [56] or [12-13].
+4) Use source markers [S1], [S2], etc. inline in the explanation for factual claims.
+5) Return ONLY valid JSON — no markdown fences, no extra text before or after.
+6) next_steps must contain only concrete, self-actionable steps the user can take themselves. Do NOT suggest consulting a lawyer — the user has no lawyer.
+7) checklist must contain only specific documents and evidence to bring to the RPD hearing.
+
+Return this exact JSON structure:
+{{
+  "explanation": "Plain-language explanation of the legal issue with [S1], [S2] citations inline.",
+  "checklist": ["Specific document or evidence to bring to the RPD hearing", "..."],
+  "next_steps": ["Concrete self-help action the user can take without a lawyer", "..."],
+  "disclaimer": "This is legal information, not legal advice. Consult a qualified Canadian immigration lawyer if possible."
+}}
 
 Context:
 {context}
@@ -31,10 +41,21 @@ Source List:
 {source_list}
 
 Question:
-{question}
-
-Answer:"""
+{question}"""
 )
+
+_FALLBACK_DISCLAIMER = (
+    "This is legal information, not legal advice. "
+    "Consult a qualified Canadian immigration lawyer."
+)
+
+_OUT_OF_SCOPE_PROMPT = """\
+You are a Canadian refugee law assistant. The user has asked something outside your scope.
+Politely explain that you specialise in Canadian refugee law (RPD/RAD tribunal decisions and \
+immigration legislation), and suggest how they might rephrase their question to get help.
+Keep your response to 2-3 sentences. Do not answer the out-of-scope question itself.
+
+User question: {question}"""
 
 
 @dataclass
@@ -46,8 +67,12 @@ class RetrievedCitation:
 
 @dataclass
 class RAGResult:
-    answer: str
+    explanation: str
+    checklist: list[str]
+    next_steps: list[str]
+    disclaimer: str
     citations: list[RetrievedCitation]
+    route: str
 
 
 class SnowflakeRAGService:
@@ -73,11 +98,14 @@ class SnowflakeRAGService:
             role=os.environ["SNOWFLAKE_ROLE"],
         )
 
-        self.cortex_search_service = os.environ["SNOWFLAKE_CORTEX_SEARCH_SERVICE"]
+        self.case_service = os.environ["SNOWFLAKE_CORTEX_SEARCH_SERVICE"]
+        self.laws_service = os.environ["SNOWFLAKE_CORTEX_LAWS_SEARCH_SERVICE"]
         self.content_field = os.environ["SNOWFLAKE_CORTEX_CONTENT_FIELD"]
         self.case_name_field = os.environ["SNOWFLAKE_CORTEX_CASE_NAME_FIELD"]
         self.source_url_field = os.environ["SNOWFLAKE_CORTEX_SOURCE_URL_FIELD"]
         self.top_k = int(os.environ["RAG_TOP_K"])
+
+        self.classifier = QueryClassifier(self.llm)
 
     def _ensure_env(self) -> None:
         required = [
@@ -91,6 +119,7 @@ class SnowflakeRAGService:
             "SNOWFLAKE_ROLE",
             "GEMINI_API_KEY",
             "SNOWFLAKE_CORTEX_SEARCH_SERVICE",
+            "SNOWFLAKE_CORTEX_LAWS_SEARCH_SERVICE",
             "SNOWFLAKE_CORTEX_CONTENT_FIELD",
             "SNOWFLAKE_CORTEX_CASE_NAME_FIELD",
             "SNOWFLAKE_CORTEX_SOURCE_URL_FIELD",
@@ -103,7 +132,30 @@ class SnowflakeRAGService:
             raise RuntimeError("RAG_TOP_K must be a positive integer.")
 
     def query(self, question: str) -> RAGResult:
-        rows = self._retrieve_similar_rows(question)
+        route = self.classifier.classify(question)
+
+        if route == QueryRoute.OUT_OF_SCOPE:
+            explanation = str(
+                self.llm.invoke(_OUT_OF_SCOPE_PROMPT.format(question=question)).content
+            ).strip()
+            return RAGResult(
+                explanation=explanation,
+                checklist=[],
+                next_steps=[],
+                disclaimer=_FALLBACK_DISCLAIMER,
+                citations=[],
+                route=route.value,
+            )
+
+        if route == QueryRoute.CASE_SEARCH:
+            rows = self._retrieve_from_service(question, self.case_service)
+        elif route == QueryRoute.LAW_SEARCH:
+            rows = self._retrieve_from_service(question, self.laws_service)
+        else:  # BOTH
+            case_rows = self._retrieve_from_service(question, self.case_service)
+            law_rows = self._retrieve_from_service(question, self.laws_service)
+            rows = self._merge_rows(case_rows, law_rows)
+
         citations = [self._to_citation(row) for row in rows]
         context, source_list = self._build_grounded_context(rows, citations)
         prompt = SYSTEM_PROMPT.format(
@@ -111,30 +163,64 @@ class SnowflakeRAGService:
             source_list=source_list,
             question=question,
         )
-        raw_answer = str(self.llm.invoke(prompt).content)
-        answer = self._with_references(raw_answer, citations)
+        raw = str(self.llm.invoke(prompt).content).strip()
+        return self._parse_structured_response(raw, citations, route.value)
 
-        return RAGResult(answer=answer, citations=citations)
+    def _merge_rows(
+        self,
+        case_rows: list[dict[str, object]],
+        law_rows: list[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        combined = case_rows + law_rows
+        combined.sort(key=self._reranker_score, reverse=True)
+        return combined[: self.top_k]
 
-    def _with_references(self, answer: str, citations: list[RetrievedCitation]) -> str:
-        clean_answer = answer.strip()
-        clean_answer = re.sub(r"\[\d+(?:\s*-\s*\d+)?\]", "", clean_answer)
+    @staticmethod
+    def _reranker_score(row: dict[str, object]) -> float:
+        scores = row.get("@scores")
+        if not isinstance(scores, dict):
+            return 0.0
+        score = scores.get("reranker_score")
+        return float(score) if isinstance(score, (int, float)) else 0.0
 
-        reference_lines: list[str] = []
-        for index, citation in enumerate(citations, start=1):
-            if not citation.url:
-                continue
-            tag = f"S{index}"
-            reference_lines.append(f"- [{citation.case_name}]({citation.url}) [{tag}]")
+    def _parse_structured_response(
+        self, raw: str, citations: list[RetrievedCitation], route: str
+    ) -> RAGResult:
+        text = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.MULTILINE)
+        text = re.sub(r"```\s*$", "", text, flags=re.MULTILINE).strip()
 
-        if not reference_lines:
-            return clean_answer
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return RAGResult(
+                explanation=self._append_references(raw, citations),
+                checklist=[],
+                next_steps=[],
+                disclaimer=_FALLBACK_DISCLAIMER,
+                citations=citations,
+                route=route,
+            )
 
-        reference_block = "References:\n" + "\n".join(reference_lines)
-        if "references:" in clean_answer.lower():
-            return clean_answer
+        explanation = self._append_references(data.get("explanation", ""), citations)
+        return RAGResult(
+            explanation=explanation,
+            checklist=data.get("checklist") or [],
+            next_steps=data.get("next_steps") or [],
+            disclaimer=data.get("disclaimer") or _FALLBACK_DISCLAIMER,
+            citations=citations,
+            route=route,
+        )
 
-        return f"{clean_answer}\n\n{reference_block}"
+    def _append_references(self, explanation: str, citations: list[RetrievedCitation]) -> str:
+        clean = re.sub(r"\[\d+(?:\s*-\s*\d+)?\]", "", explanation).strip()
+        reference_lines = [
+            f"- [{c.case_name}]({c.url}) [S{i}]"
+            for i, c in enumerate(citations, start=1)
+            if c.url
+        ]
+        if not reference_lines or "references:" in clean.lower():
+            return clean
+        return f"{clean}\n\nReferences:\n" + "\n".join(reference_lines)
 
     def _build_grounded_context(
         self,
@@ -157,7 +243,7 @@ class SnowflakeRAGService:
             source_sections.append(
                 "\n".join(
                     [
-                        f"[{source_tag}] Case: {citation.case_name}",
+                        f"[{source_tag}] Source: {citation.case_name}",
                         f"[{source_tag}] URL: {citation.url}",
                     ]
                 )
@@ -167,7 +253,9 @@ class SnowflakeRAGService:
         source_list = "\n".join(source_sections)
         return context, source_list
 
-    def _retrieve_similar_rows(self, question: str) -> list[dict[str, object]]:
+    def _retrieve_from_service(
+        self, question: str, service: str
+    ) -> list[dict[str, object]]:
         search_payload = json.dumps(
             {
                 "query": question,
@@ -177,7 +265,7 @@ class SnowflakeRAGService:
         )
         sql = "SELECT SNOWFLAKE.CORTEX.SEARCH_PREVIEW(%s, %s) AS response"
         with self.connection.cursor() as cursor:
-            cursor.execute(sql, (self.cortex_search_service, search_payload))
+            cursor.execute(sql, (service, search_payload))
             row = cursor.fetchone()
             if not row:
                 raise RuntimeError("Cortex search returned no response row.")
@@ -205,28 +293,21 @@ class SnowflakeRAGService:
                 f"Missing required metadata field '{self.source_url_field}' in Cortex result."
             )
         raw_url = raw_url_value.strip()
-        url = self._resolve_source_url(
-            raw_url=raw_url,
-            case_name=case_name,
-            citation=case_name,
-        )
+        url = self._resolve_source_url(raw_url=raw_url, case_name=case_name, citation=case_name)
+
         scores = row.get("@scores")
         if not isinstance(scores, dict):
             raise RuntimeError("Missing @scores object in Cortex result.")
         reranker_score = scores.get("reranker_score")
         if not isinstance(reranker_score, (int, float)):
             raise RuntimeError("Missing numeric @scores.reranker_score in Cortex result.")
-        score = float(reranker_score)
 
-        return RetrievedCitation(case_name=case_name, url=url, relevance_score=score)
+        return RetrievedCitation(case_name=case_name, url=url, relevance_score=float(reranker_score))
 
     def _resolve_source_url(self, raw_url: str, case_name: str, citation: str) -> str:
         candidate = raw_url.strip()
         if candidate.startswith("http://") or candidate.startswith("https://"):
             return candidate
-
-        # Dataset often stores file ids like "3598142.txt", which are not directly browsable.
-        # Prefer citation-based search for precision, then fall back to case name.
         query = citation.strip() or case_name.strip()
         if not query:
             return ""
@@ -257,10 +338,8 @@ class SnowflakeRAGService:
         return {}
 
     def _get_nested_value(self, row: dict[str, object], field_path: str) -> object:
-        """Reads nested values from Cortex result rows using dot notation."""
         if not field_path:
             return None
-
         current: object = row
         for part in field_path.split("."):
             if not isinstance(current, dict):

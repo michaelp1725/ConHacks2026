@@ -40,8 +40,12 @@ export default function Home() {
       const assistantMessage: ChatMessageType = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: response.answer,
+        content: response.explanation,
+        checklist: response.checklist,
+        next_steps: response.next_steps,
+        disclaimer: response.disclaimer,
         citations: response.citations,
+        route: response.route,
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (submissionError) {

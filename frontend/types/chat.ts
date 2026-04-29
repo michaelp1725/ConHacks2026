@@ -5,13 +5,21 @@ export type Citation = {
 };
 
 export type ChatApiResponse = {
-  answer: string;
+  explanation: string;
+  checklist: string[];
+  next_steps: string[];
+  disclaimer: string;
   citations: Citation[];
+  route: string;
 };
 
 export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  checklist?: string[];
+  next_steps?: string[];
+  disclaimer?: string;
   citations?: Citation[];
+  route?: string;
 };
