@@ -2,6 +2,7 @@ export type Citation = {
   case_name: string;
   url: string;
   relevance_score: number;
+  source_type: "case" | "law";
 };
 
 export type ChatApiResponse = {

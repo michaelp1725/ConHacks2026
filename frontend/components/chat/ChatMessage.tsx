@@ -81,27 +81,43 @@ export function ChatMessage({ message }: ChatMessageProps) {
               </div>
             )}
 
-            {message.citations && message.citations.length > 0 && (
-              <div className="mt-4">
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Sources
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {message.citations.map((citation, index) => (
-                    <a
-                      key={`${message.id}-citation-${index}`}
-                      href={citation.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs text-blue-900 transition hover:bg-blue-100"
-                      title={citation.case_name}
-                    >
-                      {citation.case_name} ({citation.relevance_score.toFixed(2)})
-                    </a>
-                  ))}
+            {message.citations && message.citations.length > 0 && (() => {
+              const cases = message.citations.filter(c => c.source_type === "case");
+              const laws = message.citations.filter(c => c.source_type === "law");
+              const renderBadges = (items: typeof message.citations, color: string) =>
+                items!.map((citation, index) => (
+                  <a
+                    key={`${message.id}-${citation.source_type}-${index}`}
+                    href={citation.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`rounded-full border px-3 py-1 text-xs transition ${color}`}
+                    title={citation.case_name}
+                  >
+                    {citation.case_name}
+                  </a>
+                ));
+              return (
+                <div className="mt-4 space-y-3">
+                  {cases.length > 0 && (
+                    <div>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Case Law</p>
+                      <div className="flex flex-wrap gap-2">
+                        {renderBadges(cases, "border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100")}
+                      </div>
+                    </div>
+                  )}
+                  {laws.length > 0 && (
+                    <div>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Legislation</p>
+                      <div className="flex flex-wrap gap-2">
+                        {renderBadges(laws, "border-purple-200 bg-purple-50 text-purple-900 hover:bg-purple-100")}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {message.disclaimer && (
               <p className="mt-4 text-xs italic text-slate-400">{message.disclaimer}</p>

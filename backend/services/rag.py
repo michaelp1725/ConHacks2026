@@ -63,6 +63,7 @@ class RetrievedCitation:
     case_name: str
     url: str
     relevance_score: float
+    source_type: str  # "case" or "law"
 
 
 @dataclass
@@ -149,14 +150,19 @@ class SnowflakeRAGService:
 
         if route == QueryRoute.CASE_SEARCH:
             rows = self._retrieve_from_service(question, self.case_service)
+            citations = [self._to_citation(row, "case") for row in rows]
         elif route == QueryRoute.LAW_SEARCH:
             rows = self._retrieve_from_service(question, self.laws_service)
+            citations = [self._to_citation(row, "law") for row in rows]
         else:  # BOTH
             case_rows = self._retrieve_from_service(question, self.case_service)
             law_rows = self._retrieve_from_service(question, self.laws_service)
             rows = self._merge_rows(case_rows, law_rows)
-
-        citations = [self._to_citation(row) for row in rows]
+            case_ids = {id(r) for r in case_rows}
+            citations = [
+                self._to_citation(row, "case" if id(row) in case_ids else "law")
+                for row in rows
+            ]
         context, source_list = self._build_grounded_context(rows, citations)
         prompt = SYSTEM_PROMPT.format(
             context=context,
@@ -278,7 +284,7 @@ class SnowflakeRAGService:
             raise RuntimeError("Cortex search response contains invalid result entries.")
         return results
 
-    def _to_citation(self, row: dict[str, object]) -> RetrievedCitation:
+    def _to_citation(self, row: dict[str, object], source_type: str) -> RetrievedCitation:
         metadata = self._extract_metadata(row)
         citation_value = metadata.get(self.case_name_field)
         if not isinstance(citation_value, str) or not citation_value.strip():
@@ -302,7 +308,7 @@ class SnowflakeRAGService:
         if not isinstance(reranker_score, (int, float)):
             raise RuntimeError("Missing numeric @scores.reranker_score in Cortex result.")
 
-        return RetrievedCitation(case_name=case_name, url=url, relevance_score=float(reranker_score))
+        return RetrievedCitation(case_name=case_name, url=url, relevance_score=float(reranker_score), source_type=source_type)
 
     def _resolve_source_url(self, raw_url: str, case_name: str, citation: str) -> str:
         candidate = raw_url.strip()
