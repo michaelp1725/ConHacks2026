@@ -3,5 +3,6 @@ datasets
 pyarrow
 langchain
 langchain-text-splitters
+python-dotenv
 snowflake-connector-python
 snowflake-sqlalchemy
