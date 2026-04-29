@@ -1,8 +1,11 @@
-pandas
 datasets
-pyarrow
+fastapi
 langchain
 langchain-text-splitters
+langchain-google-genai
+pandas
+pyarrow
+pydantic
 python-dotenv
 snowflake-connector-python
-snowflake-sqlalchemy
+uvicorn
