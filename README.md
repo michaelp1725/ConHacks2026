@@ -3,7 +3,7 @@
 RAG assistant for Canadian refugee law using:
 - FastAPI backend
 - LangChain orchestration
-- Snowflake vector retrieval
+- Snowflake Cortex Search retrieval
 - Gemini generation + embeddings
 - Next.js + Tailwind chat frontend
 
@@ -21,11 +21,11 @@ Copy `.env.example` to `.env` and fill in:
 - `SNOWFLAKE_ACCOUNT`
 - `SNOWFLAKE_USER`
 - `SNOWFLAKE_PASSWORD`
-- `SNOWFLAKE_TABLE`
+- `SNOWFLAKE_CORTEX_SEARCH_SERVICE`
 
 Recommended to also set:
 - `SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`, `SNOWFLAKE_ROLE`
-- `SNOWFLAKE_TEXT_COLUMN`, `SNOWFLAKE_VECTOR_COLUMN`, `SNOWFLAKE_METADATA_COLUMN`
+- `SNOWFLAKE_CORTEX_CONTENT_FIELD`, `SNOWFLAKE_CORTEX_CASE_NAME_FIELD`, `SNOWFLAKE_CORTEX_SOURCE_URL_FIELD`
 - `RAG_TOP_K`
 - `NEXT_PUBLIC_API_BASE_URL`
 
