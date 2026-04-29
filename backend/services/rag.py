@@ -1,19 +1,11 @@
 import os
 from dataclasses import dataclass
-from typing import Any
+import json
 
 import snowflake.connector
 from dotenv import load_dotenv
-from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-
-try:
-    from langchain_community.vectorstores import SnowflakeVectorStore
-except ImportError as exc:  # pragma: no cover
-    raise ImportError(
-        "SnowflakeVectorStore import failed. Install/update langchain-community."
-    ) from exc
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 
 SYSTEM_PROMPT = PromptTemplate.from_template(
@@ -50,7 +42,7 @@ class RAGResult:
 
 
 class SnowflakeRAGService:
-    """Startup-initialized RAG service backed by Snowflake vectors."""
+    """Startup-initialized RAG service backed by Snowflake Cortex Search."""
 
     def __init__(self) -> None:
         load_dotenv()
@@ -60,10 +52,6 @@ class SnowflakeRAGService:
             model=os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
             google_api_key=os.environ["GEMINI_API_KEY"],
             temperature=0,
-        )
-        self.embeddings = GoogleGenerativeAIEmbeddings(
-            model=os.getenv("GEMINI_EMBEDDING_MODEL", "models/embedding-001"),
-            google_api_key=os.environ["GEMINI_API_KEY"],
         )
 
         self.connection = snowflake.connector.connect(
@@ -76,7 +64,10 @@ class SnowflakeRAGService:
             role=os.getenv("SNOWFLAKE_ROLE"),
         )
 
-        self.vectorstore = self._build_vectorstore()
+        self.cortex_search_service = os.environ["SNOWFLAKE_CORTEX_SEARCH_SERVICE"]
+        self.content_field = os.getenv("SNOWFLAKE_CORTEX_CONTENT_FIELD", "TEXT")
+        self.case_name_field = os.getenv("SNOWFLAKE_CORTEX_CASE_NAME_FIELD", "case_name")
+        self.source_url_field = os.getenv("SNOWFLAKE_CORTEX_SOURCE_URL_FIELD", "source_url")
         self.top_k = int(os.getenv("RAG_TOP_K", "5"))
 
     def _ensure_env(self) -> None:
@@ -85,68 +76,81 @@ class SnowflakeRAGService:
             "SNOWFLAKE_USER",
             "SNOWFLAKE_PASSWORD",
             "GEMINI_API_KEY",
-            "SNOWFLAKE_TABLE",
+            "SNOWFLAKE_CORTEX_SEARCH_SERVICE",
         ]
         missing = [name for name in required if not os.getenv(name)]
         if missing:
             raise RuntimeError(f"Missing required environment variables: {missing}")
 
-    def _build_vectorstore(self) -> SnowflakeVectorStore:
-        """Try common SnowflakeVectorStore constructor signatures."""
-        base_kwargs = {
-            "connection": self.connection,
-            "embedding": self.embeddings,
-            "table_name": os.environ["SNOWFLAKE_TABLE"],
-        }
-
-        optional_kwargs = {
-            "database": os.getenv("SNOWFLAKE_DATABASE"),
-            "schema": os.getenv("SNOWFLAKE_SCHEMA"),
-            "text_column": os.getenv("SNOWFLAKE_TEXT_COLUMN", "TEXT"),
-            "embedding_column": os.getenv("SNOWFLAKE_VECTOR_COLUMN", "EMBEDDING"),
-            "metadata_column": os.getenv("SNOWFLAKE_METADATA_COLUMN", "METADATA"),
-        }
-        cleaned_optional = {k: v for k, v in optional_kwargs.items() if v}
-
-        attempts: list[dict[str, Any]] = [
-            {**base_kwargs, **cleaned_optional},
-            {"connection": self.connection, "embedding": self.embeddings},
-            {
-                "connection": self.connection,
-                "embedding_function": self.embeddings,
-                "table_name": os.environ["SNOWFLAKE_TABLE"],
-                **cleaned_optional,
-            },
-        ]
-
-        last_error: Exception | None = None
-        for kwargs in attempts:
-            try:
-                return SnowflakeVectorStore(**kwargs)
-            except Exception as exc:  # pragma: no cover
-                last_error = exc
-
-        raise RuntimeError(
-            f"Failed to initialize SnowflakeVectorStore with available constructor variants: {last_error}"
-        )
-
     def query(self, question: str) -> RAGResult:
-        docs_with_scores = self.vectorstore.similarity_search_with_relevance_scores(
-            question, k=self.top_k
-        )
-        context_chunks = [doc.page_content for doc, _ in docs_with_scores]
+        rows = self._retrieve_similar_rows(question)
+        context_chunks = [
+            str(self._get_nested_value(row, self.content_field) or "")
+            for row in rows
+            if str(self._get_nested_value(row, self.content_field) or "").strip()
+        ]
         context = "\n\n---\n\n".join(context_chunks)
         prompt = SYSTEM_PROMPT.format(context=context, question=question)
         answer = self.llm.invoke(prompt).content
 
-        citations: list[RetrievedCitation] = []
-        for doc, score in docs_with_scores:
-            citations.append(self._to_citation(doc, score))
+        citations = [self._to_citation(row) for row in rows]
 
         return RAGResult(answer=str(answer), citations=citations)
 
-    def _to_citation(self, doc: Document, score: float) -> RetrievedCitation:
-        metadata = doc.metadata or {}
-        case_name = str(metadata.get("case_name", metadata.get("title", "Unknown case")))
-        url = str(metadata.get("source_url", metadata.get("url", "")))
-        return RetrievedCitation(case_name=case_name, url=url, relevance_score=float(score))
+    def _retrieve_similar_rows(self, question: str) -> list[dict[str, object]]:
+        search_payload = json.dumps(
+            {
+                "query": question,
+                "limit": self.top_k,
+            }
+        )
+        sql = "SELECT SNOWFLAKE.CORTEX.SEARCH_PREVIEW(%s, %s) AS response"
+        with self.connection.cursor() as cursor:
+            cursor.execute(sql, (self.cortex_search_service, search_payload))
+            row = cursor.fetchone()
+            if not row:
+                return []
+            response = self._parse_json_value(row[0])
+
+        results = response.get("results", [])
+        return [result for result in results if isinstance(result, dict)]
+
+    def _to_citation(self, row: dict[str, object]) -> RetrievedCitation:
+        case_name = str(
+            self._get_nested_value(row, self.case_name_field)
+            or row.get("case_name")
+            or row.get("title")
+            or "Unknown case"
+        )
+        url = str(
+            self._get_nested_value(row, self.source_url_field)
+            or row.get("source_url")
+            or row.get("url")
+            or ""
+        )
+        score = float(row.get("score") or row.get("_score") or row.get("@score") or 0.0)
+
+        return RetrievedCitation(case_name=case_name, url=url, relevance_score=score)
+
+    def _parse_json_value(self, raw_value: object) -> dict[str, object]:
+        if isinstance(raw_value, dict):
+            return raw_value
+        if isinstance(raw_value, str):
+            try:
+                parsed = json.loads(raw_value)
+                return parsed if isinstance(parsed, dict) else {}
+            except json.JSONDecodeError:
+                return {}
+        return {}
+
+    def _get_nested_value(self, row: dict[str, object], field_path: str) -> object:
+        """Reads nested values from Cortex result rows using dot notation."""
+        if not field_path:
+            return None
+
+        current: object = row
+        for part in field_path.split("."):
+            if not isinstance(current, dict):
+                return None
+            current = current.get(part)
+        return current
