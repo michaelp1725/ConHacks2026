@@ -1,2 +1,7 @@
 pandas
 datasets
+pyarrow
+langchain
+langchain-text-splitters
+snowflake-connector-python
+snowflake-sqlalchemy
