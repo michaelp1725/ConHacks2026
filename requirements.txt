@@ -1,14 +1,10 @@
 datasets
 fastapi
 langchain
-langchain-community
 langchain-google-genai
-langchain-google-vertexai
-langchain-text-splitters
 pandas
 pyarrow
 pydantic
 python-dotenv
 snowflake-connector-python
-snowflake-sqlalchemy
 uvicorn
