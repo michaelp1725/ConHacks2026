@@ -1,6 +1,7 @@
 datasets
 fastapi
 langchain
+langchain-text-splitters
 langchain-google-genai
 pandas
 pyarrow
