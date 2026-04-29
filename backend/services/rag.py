@@ -21,10 +21,11 @@ Rules:
 1) Do not use outside knowledge. If context is insufficient, say so in the explanation field.
 2) Keep answers concise and professional.
 3) Do NOT output bare bracket citations like [56] or [12-13].
-4) Use source markers [S1], [S2], etc. inline in the explanation for factual claims.
-5) Return ONLY valid JSON — no markdown fences, no extra text before or after.
-6) next_steps must contain only concrete, self-actionable steps the user can take themselves. Do NOT suggest consulting a lawyer — the user has no lawyer.
-7) checklist must contain only specific documents and evidence to bring to the RPD hearing.
+4) Read ALL sources in the context before writing your answer.
+5) Use source markers [S1], [S2], etc. inline in the explanation for factual claims. Only cite sources that are directly relevant — do not cite a source just because it exists.
+6) Return ONLY valid JSON — no markdown fences, no extra text before or after.
+7) next_steps must contain only concrete, self-actionable steps the user can take themselves. Do NOT suggest consulting a lawyer — the user has no lawyer.
+8) checklist must contain only specific documents and evidence to bring to the RPD hearing.
 
 Return this exact JSON structure:
 {{
@@ -155,15 +156,14 @@ class SnowflakeRAGService:
         elif route == QueryRoute.LAW_SEARCH:
             rows = self._retrieve_from_service(question, self.laws_service)
             citations = [self._to_citation(row, "law") for row in rows]
-        else:  # BOTH
+        else:  # BOTH — top_k from each service, up to 2*top_k total context
             case_rows = self._retrieve_from_service(question, self.case_service)
             law_rows = self._retrieve_from_service(question, self.laws_service)
-            rows = self._merge_rows(case_rows, law_rows)
-            case_ids = {id(r) for r in case_rows}
-            citations = [
-                self._to_citation(row, "case" if id(row) in case_ids else "law")
-                for row in rows
-            ]
+            rows = case_rows + law_rows
+            citations = (
+                [self._to_citation(row, "case") for row in case_rows]
+                + [self._to_citation(row, "law") for row in law_rows]
+            )
         context, source_list = self._build_grounded_context(rows, citations)
         prompt = SYSTEM_PROMPT.format(
             context=context,
@@ -172,23 +172,6 @@ class SnowflakeRAGService:
         )
         raw = str(self.llm.invoke(prompt).content).strip()
         return self._parse_structured_response(raw, citations, route.value)
-
-    def _merge_rows(
-        self,
-        case_rows: list[dict[str, object]],
-        law_rows: list[dict[str, object]],
-    ) -> list[dict[str, object]]:
-        combined = case_rows + law_rows
-        combined.sort(key=self._reranker_score, reverse=True)
-        return combined[: self.top_k]
-
-    @staticmethod
-    def _reranker_score(row: dict[str, object]) -> float:
-        scores = row.get("@scores")
-        if not isinstance(scores, dict):
-            return 0.0
-        score = scores.get("reranker_score")
-        return float(score) if isinstance(score, (int, float)) else 0.0
 
     def _parse_structured_response(
         self, raw: str, citations: list[RetrievedCitation], route: str
@@ -225,7 +208,7 @@ class SnowflakeRAGService:
     def _filter_used_citations(
         explanation: str, citations: list[RetrievedCitation]
     ) -> list[RetrievedCitation]:
-        used_indices = {int(m) for m in re.findall(r"\[S(\d+)\]", explanation)}
+        used_indices = {int(m) for m in re.findall(r"S(\d+)", explanation)}
         result = []
         for i, c in enumerate(citations, start=1):
             if i in used_indices:
