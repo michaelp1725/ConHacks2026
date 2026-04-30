@@ -126,7 +126,7 @@ export function CaseExperience() {
       const response = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: trimmed }),
+        body: JSON.stringify({ query: trimmed }),
       });
       if (!response.ok) throw new Error("bad");
       const raw = (await response.json()) as Record<string, unknown>;

@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "../styles.css";
 
 /* Next.js: legacy markup is injected in a wrapper; Chrome needs a stable flex child for full width / scroll. */
 body.min-h-full.flex.flex-col > div:first-child {

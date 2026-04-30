@@ -1,4 +1,7 @@
-export const API_URL = "http://localhost:8000/ask";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+
+export const API_URL = `${API_BASE_URL}/api/chat`;
 
 export type NormalizedResponse = {
   explanation: string;
@@ -119,8 +122,11 @@ export function normalizeResponse(data: Record<string, unknown>): NormalizedResp
     (data.evidence as string[]) ||
     [];
   const nextSteps =
-    (data.nextSteps as string[]) || (data.suggestedNextSteps as string[]) || [];
-  const citations = (data.citations as CitationItem[]) || (data.sources as CitationItem[]) || [];
+    (data.nextSteps as string[]) ||
+    (data.next_steps as string[]) ||
+    (data.suggestedNextSteps as string[]) ||
+    [];
+  const citations = normalizeCitations(data);
   const disclaimer =
     (data.disclaimer as string) ||
     "This tool provides legal information, not legal advice. Consider speaking with a licensed lawyer or legal clinic.";
@@ -135,6 +141,21 @@ export function normalizeResponse(data: Record<string, unknown>): NormalizedResp
     citations,
     disclaimer,
   };
+}
+
+function normalizeCitations(data: Record<string, unknown>): CitationItem[] {
+  const rawItems = (data.citations as Record<string, unknown>[]) || (data.sources as CitationItem[]) || [];
+
+  return rawItems.map((item) => ({
+    title:
+      (item.title as string) ||
+      (item.case_name as string) ||
+      (item.label as string) ||
+      "Citation",
+    snippet: item.snippet as string | undefined,
+    url: item.url as string | undefined,
+    type: (item.type as string) || (item.source_type as string | undefined),
+  }));
 }
 
 export function escapeHtml(value: string) {
