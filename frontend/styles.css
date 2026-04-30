@@ -2154,9 +2154,24 @@ body.onboarding-view .action-bar {
   line-height: 1.5;
 }
 
-.research-answer-section li span {
+.research-list-marker {
   color: #2563eb;
   font-weight: 800;
+}
+
+.research-list-content {
+  color: inherit;
+  font-weight: inherit;
+}
+
+.research-inline-citation {
+  color: #2563eb;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.research-inline-citation:hover {
+  text-decoration: underline;
 }
 
 .research-sources {

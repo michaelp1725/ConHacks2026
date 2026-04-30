@@ -433,11 +433,20 @@ class SnowflakeRAGService:
             )
 
         raw_explanation = data.get("explanation", "")
-        used_citations = self._filter_used_citations(raw_explanation, citations)
+        checklist = data.get("checklist") or []
+        next_steps = data.get("next_steps") or []
+        citation_text = "\n".join(
+            [
+                str(raw_explanation),
+                *[str(item) for item in checklist],
+                *[str(item) for item in next_steps],
+            ]
+        )
+        used_citations = self._filter_used_citations(citation_text, citations)
         return RAGResult(
             explanation=raw_explanation,
-            checklist=data.get("checklist") or [],
-            next_steps=data.get("next_steps") or [],
+            checklist=checklist,
+            next_steps=next_steps,
             disclaimer=data.get("disclaimer") or _FALLBACK_DISCLAIMER,
             citations=used_citations,
             route=route,
@@ -445,9 +454,9 @@ class SnowflakeRAGService:
 
     @staticmethod
     def _filter_used_citations(
-        explanation: str, citations: list[RetrievedCitation]
+        answer_text: str, citations: list[RetrievedCitation]
     ) -> list[RetrievedCitation]:
-        used_indices = {int(m) for m in re.findall(r"S(\d+)", explanation)}
+        used_indices = {int(m) for m in re.findall(r"S(\d+)", answer_text)}
         result = []
         for i, c in enumerate(citations, start=1):
             if i in used_indices:

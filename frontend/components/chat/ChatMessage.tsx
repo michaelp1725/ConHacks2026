@@ -12,6 +12,7 @@ const ROUTE_LABELS: Record<string, string> = {
   LAW_SEARCH: "Legislation",
   BOTH: "Case Law + Legislation",
   OUT_OF_SCOPE: "Out of Scope",
+  FOLLOW_UP: "Follow Up",
 };
 
 const ROUTE_COLORS: Record<string, string> = {
@@ -19,6 +20,7 @@ const ROUTE_COLORS: Record<string, string> = {
   LAW_SEARCH: "route-law",
   BOTH: "route-both",
   OUT_OF_SCOPE: "route-muted",
+  FOLLOW_UP: "route-muted",
 };
 
 function renderTextWithCitationLinks(
@@ -121,8 +123,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
                 <ul>
                   {message.checklist.map((item, i) => (
                     <li key={i}>
-                      <span aria-hidden="true">✓</span>
-                      {item}
+                      <span className="research-list-marker" aria-hidden="true">✓</span>
+                      <span className="research-list-content">
+                        {renderTextWithCitationLinks(item, citationMap)}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -135,8 +139,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
                 <ol>
                   {message.next_steps.map((step, i) => (
                     <li key={i}>
-                      <span>{i + 1}.</span>
-                      {step}
+                      <span className="research-list-marker">{i + 1}.</span>
+                      <span className="research-list-content">
+                        {renderTextWithCitationLinks(step, citationMap)}
+                      </span>
                     </li>
                   ))}
                 </ol>
