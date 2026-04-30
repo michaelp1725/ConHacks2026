@@ -57,6 +57,10 @@ function renderTextWithCitationLinks(
 
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user";
+  const normalizedAssistantContent =
+    !isUser && message.content.startsWith("**Something went wrong.**")
+      ? message.content.replace("**Something went wrong.**", "Something went wrong.")
+      : message.content;
   const citationMap = new Map(
     (message.citations || []).map((citation) => [citation.label, citation])
   );
@@ -76,8 +80,19 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
   return (
     <article className={`research-message-row ${isUser ? "user" : "assistant"}`}>
-      <div className="research-message-avatar" aria-hidden="true">
-        {isUser ? "You" : "C"}
+      <div
+        className={`research-message-avatar ${isUser ? "user-avatar" : "assistant-avatar"}`}
+        aria-hidden="true"
+      >
+        {isUser ? (
+          "You"
+        ) : (
+          <img
+            src="/favicon.ico"
+            alt=""
+            className="research-message-avatar-logo"
+          />
+        )}
       </div>
       <div className="research-message-bubble">
         {isUser ? (
@@ -96,7 +111,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
             <div className="research-markdown">
               <ReactMarkdown components={markdownComponents}>
-                {message.content}
+                {normalizedAssistantContent}
               </ReactMarkdown>
             </div>
 

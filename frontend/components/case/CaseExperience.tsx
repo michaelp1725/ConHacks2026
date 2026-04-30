@@ -533,7 +533,7 @@ export function CaseExperience() {
                 </article>
               </div>
             </section>
-            <p className="landing-footer-note">MEN Corporation Ltd.</p>
+            <p className="landing-footer-note">MEN Corporation Ltd. | 2026</p>
 
         <section id="app-shell" className={showOnboarding ? "hidden" : undefined}>
           <header className="topbar">
