@@ -81,6 +81,43 @@ Question:
 {question}"""
 )
 
+FOLLOW_UP_PROMPT = PromptTemplate.from_template(
+    """You are a Canadian refugee law assistant.
+The user is asking a follow-up about the prior assistant answer below.
+Answer using ONLY the prior assistant answer. Do not retrieve or invent new legal facts.
+If the user asks for a summary or rewrite, preserve the meaning and remove citations unless they are necessary.
+Return ONLY valid JSON — no markdown fences, no extra text before or after.
+
+Return this exact JSON structure:
+{{
+  "explanation": "Direct answer to the user's follow-up.",
+  "checklist": [],
+  "next_steps": [],
+  "disclaimer": "This is legal information, not legal advice. Consult a qualified Canadian immigration lawyer if possible."
+}}
+
+Prior assistant answer:
+{prior_answer}
+
+User follow-up:
+{question}"""
+)
+
+STANDALONE_QUERY_PROMPT = PromptTemplate.from_template(
+    """Rewrite the current user question as a standalone Canadian refugee law research query.
+Use the prior conversation only to resolve references like "that", "this", "the claim", or "what about state protection".
+Do not answer the question.
+Keep the rewritten query to one sentence.
+
+Prior conversation:
+{history}
+
+Current question:
+{question}
+
+Standalone query:"""
+)
+
 
 @dataclass
 class RetrievedCitation:
@@ -164,12 +201,16 @@ class SnowflakeRAGService:
         if int(os.environ["RAG_TOP_K"]) <= 0:
             raise RuntimeError("RAG_TOP_K must be a positive integer.")
 
-    def query(self, question: str) -> RAGResult:
-        route = self.classifier.classify(question)
+    def query(self, question: str, history: list[dict[str, str]] | None = None) -> RAGResult:
+        if self._is_history_transform_request(question, history):
+            return self._answer_from_history(question, history or [])
+
+        research_question = self._standalone_question(question, history)
+        route = self.classifier.classify(research_question, history)
 
         if route == QueryRoute.OUT_OF_SCOPE:
             explanation = str(
-                self.llm.invoke(_OUT_OF_SCOPE_PROMPT.format(question=question)).content
+                self.llm.invoke(_OUT_OF_SCOPE_PROMPT.format(question=research_question)).content
             ).strip()
             return RAGResult(
                 explanation=explanation,
@@ -181,14 +222,14 @@ class SnowflakeRAGService:
             )
 
         if route == QueryRoute.CASE_SEARCH:
-            rows = self._retrieve_from_service(question, self.case_service)
+            rows = self._retrieve_from_service(research_question, self.case_service)
             citations = [self._to_citation(row, "case") for row in rows]
         elif route == QueryRoute.LAW_SEARCH:
-            rows = self._retrieve_from_service(question, self.laws_service)
+            rows = self._retrieve_from_service(research_question, self.laws_service)
             citations = [self._to_citation(row, "law") for row in rows]
         else:  # BOTH — top_k from each service, up to 2*top_k total context
-            case_rows = self._retrieve_from_service(question, self.case_service)
-            law_rows = self._retrieve_from_service(question, self.laws_service)
+            case_rows = self._retrieve_from_service(research_question, self.case_service)
+            law_rows = self._retrieve_from_service(research_question, self.laws_service)
             rows = case_rows + law_rows
             citations = (
                 [self._to_citation(row, "case") for row in case_rows]
@@ -199,28 +240,29 @@ class SnowflakeRAGService:
         prompt = SYSTEM_PROMPT.format(
             context=context,
             source_list=source_list,
-            question=question,
+            question=research_question,
         )
         raw = str(self.llm.invoke(prompt).content).strip()
         return self._parse_structured_response(raw, citations, route.value)
 
-    def prepare_stream_query(self, question: str) -> RAGPreparedQuery:
+    def prepare_stream_query(self, question: str, history: list[dict[str, str]] | None = None) -> RAGPreparedQuery:
         """Like query() but builds a prose prompt for token-by-token streaming."""
-        route = self.classifier.classify(question)
+        research_question = self._standalone_question(question, history)
+        route = self.classifier.classify(research_question, history)
 
         if route == QueryRoute.OUT_OF_SCOPE:
-            prompt = _OUT_OF_SCOPE_PROMPT.format(question=question)
+            prompt = _OUT_OF_SCOPE_PROMPT.format(question=research_question)
             return RAGPreparedQuery(prompt=prompt, citations=[], route=route.value)
 
         if route == QueryRoute.CASE_SEARCH:
-            rows = self._retrieve_from_service(question, self.case_service)
+            rows = self._retrieve_from_service(research_question, self.case_service)
             citations = [self._to_citation(row, "case") for row in rows]
         elif route == QueryRoute.LAW_SEARCH:
-            rows = self._retrieve_from_service(question, self.laws_service)
+            rows = self._retrieve_from_service(research_question, self.laws_service)
             citations = [self._to_citation(row, "law") for row in rows]
         else:
-            case_rows = self._retrieve_from_service(question, self.case_service)
-            law_rows = self._retrieve_from_service(question, self.laws_service)
+            case_rows = self._retrieve_from_service(research_question, self.case_service)
+            law_rows = self._retrieve_from_service(research_question, self.laws_service)
             rows = case_rows + law_rows
             citations = (
                 [self._to_citation(row, "case") for row in case_rows]
@@ -234,7 +276,7 @@ class SnowflakeRAGService:
         prompt = STREAM_PROMPT.format(
             context=context,
             source_list=source_list,
-            question=question,
+            question=research_question,
         )
         return RAGPreparedQuery(prompt=prompt, citations=citations, route=route.value)
 
@@ -246,6 +288,113 @@ class SnowflakeRAGService:
 
     def finalize_answer(self, answer: str, citations: list[RetrievedCitation]) -> str:
         return answer
+
+    def _answer_from_history(
+        self, question: str, history: list[dict[str, str]]
+    ) -> RAGResult:
+        prior_answer = self._last_assistant_message(history)
+        if not prior_answer:
+            return RAGResult(
+                explanation="I do not have a prior answer to work from yet. Ask a Canadian refugee law question first.",
+                checklist=[],
+                next_steps=[],
+                disclaimer=_FALLBACK_DISCLAIMER,
+                citations=[],
+                route="FOLLOW_UP",
+            )
+
+        raw = str(
+            self.llm.invoke(
+                FOLLOW_UP_PROMPT.format(question=question, prior_answer=prior_answer)
+            ).content
+        ).strip()
+        return self._parse_structured_response(raw, [], "FOLLOW_UP")
+
+    def _standalone_question(
+        self, question: str, history: list[dict[str, str]] | None
+    ) -> str:
+        if not history or not self._looks_contextual(question):
+            return question
+
+        recent = history[-6:]
+        history_text = "\n".join(
+            f"{message['role'].capitalize()}: {message['content']}" for message in recent
+        )
+        rewritten = str(
+            self.llm.invoke(
+                STANDALONE_QUERY_PROMPT.format(history=history_text, question=question)
+            ).content
+        ).strip()
+        return rewritten or question
+
+    @staticmethod
+    def _last_assistant_message(history: list[dict[str, str]]) -> str:
+        for message in reversed(history):
+            if message.get("role") == "assistant" and message.get("content"):
+                return message["content"]
+        return ""
+
+    @staticmethod
+    def _is_history_transform_request(
+        question: str, history: list[dict[str, str]] | None
+    ) -> bool:
+        if not history:
+            return False
+
+        text = question.lower().strip()
+        transform_terms = (
+            "summarize",
+            "summary",
+            "shorter",
+            "shorten",
+            "rewrite",
+            "reword",
+            "simplify",
+            "explain that",
+            "explain it",
+            "in one sentence",
+            "1 sentence",
+            "one sentence",
+            "bullet",
+            "bullets",
+            "make that",
+            "make it",
+            "what did you mean",
+        )
+        references_prior = (
+            "that",
+            "it",
+            "this",
+            "above",
+            "previous",
+            "prior",
+            "last answer",
+            "response",
+        )
+        return any(term in text for term in transform_terms) and (
+            any(ref in text for ref in references_prior)
+            or len(text.split()) <= 8
+        )
+
+    @staticmethod
+    def _looks_contextual(question: str) -> bool:
+        text = question.lower().strip()
+        contextual_markers = (
+            "that",
+            "it",
+            "this",
+            "they",
+            "their",
+            "those",
+            "same",
+            "above",
+            "previous",
+            "what about",
+            "how about",
+            "tell me more",
+            "expand",
+        )
+        return any(marker in text for marker in contextual_markers)
 
     def _parse_structured_response(
         self, raw: str, citations: list[RetrievedCitation], route: str

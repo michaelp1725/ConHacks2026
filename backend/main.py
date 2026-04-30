@@ -38,7 +38,8 @@ def chat(payload: ChatRequest) -> ChatResponse:
     if rag_service is None:
         raise HTTPException(status_code=503, detail="RAG service is still initializing.")
 
-    result = rag_service.query(payload.query)
+    history = [{"role": m.role, "content": m.content} for m in payload.history]
+    result = rag_service.query(payload.query, history)
     citations = [
         Citation(case_name=c.case_name, url=c.url, relevance_score=c.relevance_score, source_type=c.source_type, label=c.label)
         for c in result.citations
@@ -63,7 +64,8 @@ def stream_chat(payload: ChatRequest) -> StreamingResponse:
 
     def event_stream():
         try:
-            prepared = rag_service.prepare_stream_query(payload.query)
+            history = [{"role": m.role, "content": m.content} for m in payload.history]
+            prepared = rag_service.prepare_stream_query(payload.query, history)
 
             if prepared.route:
                 yield _sse("route", {"route": prepared.route})

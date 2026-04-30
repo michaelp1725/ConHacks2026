@@ -19,17 +19,25 @@ Classify the user query into exactly one category:
 - BOTH: Questions that need both case law AND statutory text (e.g. how courts have interpreted a specific statute, what the law requires and how it has been applied in practice)
 - OUT_OF_SCOPE: Not related to Canadian refugee or immigration law
 
+If there is prior conversation history, use it only to understand short follow-up questions.
+
 Reply with ONLY the category name. No explanation, no punctuation, no extra text.
 
-Query: {question}"""
+{history_section}Query: {question}"""
 
 
 class QueryClassifier:
     def __init__(self, llm: ChatGoogleGenerativeAI) -> None:
         self._llm = llm
 
-    def classify(self, question: str) -> QueryRoute:
-        raw = str(self._llm.invoke(_PROMPT.format(question=question)).content).strip().upper()
+    def classify(self, question: str, history: list[dict[str, str]] | None = None) -> QueryRoute:
+        history_section = ""
+        if history:
+            recent = history[-4:]
+            lines = "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in recent)
+            history_section = f"Prior conversation:\n{lines}\n\n"
+
+        raw = str(self._llm.invoke(_PROMPT.format(question=question, history_section=history_section)).content).strip().upper()
         try:
             route = QueryRoute(raw)
         except ValueError:

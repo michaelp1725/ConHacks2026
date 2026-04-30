@@ -3,13 +3,18 @@ import { ChatApiResponse } from "@/types/chat";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
-export async function sendChatQuery(query: string): Promise<ChatApiResponse> {
+export type HistoryMessage = { role: "user" | "assistant"; content: string };
+
+export async function sendChatQuery(
+  query: string,
+  history: HistoryMessage[] = [],
+): Promise<ChatApiResponse> {
   const response = await fetch(`${API_BASE_URL}/api/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, history }),
   });
 
   if (!response.ok) {
@@ -53,6 +58,7 @@ function parseSseMessage(raw: string): SseMessage | null {
 export async function streamChatQuery(
   query: string,
   handlers: StreamHandlers,
+  history: HistoryMessage[] = [],
 ): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
     method: "POST",
@@ -60,7 +66,7 @@ export async function streamChatQuery(
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, history }),
   });
 
   if (!response.ok || !response.body) {

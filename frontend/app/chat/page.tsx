@@ -4,8 +4,39 @@ import Link from "next/link";
 import { useCallback, useState } from "react";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ChatMessage } from "@/components/chat/ChatMessage";
-import { sendChatQuery } from "@/lib/api";
+import { sendChatQuery, type HistoryMessage } from "@/lib/api";
 import type { ChatMessage as ChatMessageModel } from "@/types/chat";
+
+function formatAssistantForHistory(message: ChatMessageModel) {
+  const sections = [message.content];
+
+  if (message.checklist?.length) {
+    sections.push(`Evidence Checklist:\n${message.checklist.map((item) => `- ${item}`).join("\n")}`);
+  }
+
+  if (message.next_steps?.length) {
+    sections.push(`Next Steps:\n${message.next_steps.map((item, i) => `${i + 1}. ${item}`).join("\n")}`);
+  }
+
+  if (message.disclaimer) {
+    sections.push(`Disclaimer: ${message.disclaimer}`);
+  }
+
+  return sections.filter(Boolean).join("\n\n");
+}
+
+function buildHistory(messages: ChatMessageModel[]): HistoryMessage[] {
+  return messages
+    .filter((message) => message.content.trim())
+    .slice(-8)
+    .map((message) => ({
+      role: message.role,
+      content:
+        message.role === "assistant"
+          ? formatAssistantForHistory(message)
+          : message.content,
+    }));
+}
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessageModel[]>([]);
@@ -23,6 +54,7 @@ export default function ChatPage() {
       content: query,
     };
     const assistantId = crypto.randomUUID();
+    const history = buildHistory(messages);
 
     setMessages((prev) => [
       ...prev,
@@ -32,7 +64,7 @@ export default function ChatPage() {
     setIsLoading(true);
 
     try {
-      const result = await sendChatQuery(query);
+      const result = await sendChatQuery(query, history);
       setMessages((prev) => {
         const next = [...prev];
         const i = next.findIndex((m) => m.id === assistantId);
@@ -65,7 +97,7 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading]);
+  }, [input, isLoading, messages]);
 
   return (
     <div className="flex min-h-[calc(100vh-0px)] flex-col bg-slate-50">
