@@ -1,11 +1,11 @@
-import { BodyOnboardingView } from "@/components/legacy/BodyOnboardingView";
-import { LegacyHomeMarkup } from "@/components/legacy/LegacyHomeMarkup";
+import type { Metadata } from "next";
+import { CaseExperience } from "@/components/case/CaseExperience";
+
+export const metadata: Metadata = {
+  title: "Case",
+  description: "Legal research and case preparation assistant.",
+};
 
 export default function Home() {
-  return (
-    <>
-      <BodyOnboardingView />
-      <LegacyHomeMarkup />
-    </>
-  );
+  return <CaseExperience />;
 }
