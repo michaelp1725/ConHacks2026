@@ -36,6 +36,7 @@ Rules:
    - connect the law to what the decision-maker will likely look at;
    - stay concise: usually 2 short paragraphs, no more than 180 words.
 10) checklist and next_steps should stay practical and specific. Do not make them sound like formal legal submissions unless the user asked for formal drafting help.
+11) If the user is only asking for a definition, meaning, or what a law says, set checklist and next_steps to empty arrays unless the user also asks what to do, how to prepare, or what evidence is needed.
 
 Return this exact JSON structure:
 {{
