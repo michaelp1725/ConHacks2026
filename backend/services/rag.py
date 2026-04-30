@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import json
 import re
 from urllib.parse import quote_plus
+from collections.abc import Iterator
 
 import snowflake.connector
 from dotenv import load_dotenv
@@ -58,6 +59,28 @@ Keep your response to 2-3 sentences. Do not answer the out-of-scope question its
 
 User question: {question}"""
 
+STREAM_PROMPT = PromptTemplate.from_template(
+    """You are a legal research assistant for Canadian refugee law.
+You are helping self-represented litigants (SRLs) — people navigating the refugee system without a lawyer.
+Answer ONLY using the context and source list below.
+
+Rules:
+1) Do not use outside knowledge. If context is insufficient, say so.
+2) Keep answers concise, plain-language, and professional.
+3) Do NOT output bare bracket citations like [56] or [12-13].
+4) Use source markers [S1], [S2], etc. inline for factual claims. Only cite sources that are directly relevant.
+5) Write in flowing prose — no JSON, no markdown fences, no structured fields.
+
+Context:
+{context}
+
+Source List:
+{source_list}
+
+Question:
+{question}"""
+)
+
 
 @dataclass
 class RetrievedCitation:
@@ -76,6 +99,13 @@ class RAGResult:
     disclaimer: str
     citations: list[RetrievedCitation]
     route: str
+
+
+@dataclass
+class RAGPreparedQuery:
+    prompt: str
+    citations: list[RetrievedCitation]
+    route: str = ""
 
 
 class SnowflakeRAGService:
@@ -164,6 +194,7 @@ class SnowflakeRAGService:
                 [self._to_citation(row, "case") for row in case_rows]
                 + [self._to_citation(row, "law") for row in law_rows]
             )
+
         context, source_list = self._build_grounded_context(rows, citations)
         prompt = SYSTEM_PROMPT.format(
             context=context,
@@ -173,11 +204,60 @@ class SnowflakeRAGService:
         raw = str(self.llm.invoke(prompt).content).strip()
         return self._parse_structured_response(raw, citations, route.value)
 
+    def prepare_stream_query(self, question: str) -> RAGPreparedQuery:
+        """Like query() but builds a prose prompt for token-by-token streaming."""
+        route = self.classifier.classify(question)
+
+        if route == QueryRoute.OUT_OF_SCOPE:
+            prompt = _OUT_OF_SCOPE_PROMPT.format(question=question)
+            return RAGPreparedQuery(prompt=prompt, citations=[], route=route.value)
+
+        if route == QueryRoute.CASE_SEARCH:
+            rows = self._retrieve_from_service(question, self.case_service)
+            citations = [self._to_citation(row, "case") for row in rows]
+        elif route == QueryRoute.LAW_SEARCH:
+            rows = self._retrieve_from_service(question, self.laws_service)
+            citations = [self._to_citation(row, "law") for row in rows]
+        else:
+            case_rows = self._retrieve_from_service(question, self.case_service)
+            law_rows = self._retrieve_from_service(question, self.laws_service)
+            rows = case_rows + law_rows
+            citations = (
+                [self._to_citation(row, "case") for row in case_rows]
+                + [self._to_citation(row, "law") for row in law_rows]
+            )
+
+        for i, c in enumerate(citations, start=1):
+            c.label = f"S{i}"
+
+        context, source_list = self._build_grounded_context(rows, citations)
+        prompt = STREAM_PROMPT.format(
+            context=context,
+            source_list=source_list,
+            question=question,
+        )
+        return RAGPreparedQuery(prompt=prompt, citations=citations, route=route.value)
+
+    def stream_answer(self, prompt: str) -> Iterator[str]:
+        for chunk in self.llm.stream(prompt):
+            content = chunk.content
+            if isinstance(content, str) and content:
+                yield content
+
+    def finalize_answer(self, answer: str, citations: list[RetrievedCitation]) -> str:
+        return answer
+
     def _parse_structured_response(
         self, raw: str, citations: list[RetrievedCitation], route: str
     ) -> RAGResult:
         text = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.MULTILINE)
         text = re.sub(r"```\s*$", "", text, flags=re.MULTILINE).strip()
+
+        # Gemini sometimes prepends prose before the JSON object — extract just the object
+        if not text.startswith("{"):
+            match = re.search(r"\{.*\}", text, re.DOTALL)
+            if match:
+                text = match.group(0)
 
         try:
             data = json.loads(text)
@@ -194,9 +274,8 @@ class SnowflakeRAGService:
 
         raw_explanation = data.get("explanation", "")
         used_citations = self._filter_used_citations(raw_explanation, citations)
-        explanation = raw_explanation
         return RAGResult(
-            explanation=explanation,
+            explanation=raw_explanation,
             checklist=data.get("checklist") or [],
             next_steps=data.get("next_steps") or [],
             disclaimer=data.get("disclaimer") or _FALLBACK_DISCLAIMER,

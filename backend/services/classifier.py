@@ -31,6 +31,8 @@ class QueryClassifier:
     def classify(self, question: str) -> QueryRoute:
         raw = str(self._llm.invoke(_PROMPT.format(question=question)).content).strip().upper()
         try:
-            return QueryRoute(raw)
+            route = QueryRoute(raw)
         except ValueError:
-            return QueryRoute.BOTH
+            route = QueryRoute.BOTH
+
+        return route

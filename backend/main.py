@@ -1,5 +1,8 @@
+import json
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from backend.schemas.chat import ChatRequest, ChatResponse, Citation
 from backend.services.rag import SnowflakeRAGService
@@ -48,3 +51,47 @@ def chat(payload: ChatRequest) -> ChatResponse:
         citations=citations,
         route=result.route,
     )
+
+
+@app.post("/api/chat/stream")
+def stream_chat(payload: ChatRequest) -> StreamingResponse:
+    if rag_service is None:
+        raise HTTPException(status_code=503, detail="RAG service is still initializing.")
+
+    def _sse(event: str, data: object) -> str:
+        return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+    def event_stream():
+        try:
+            prepared = rag_service.prepare_stream_query(payload.query)
+
+            if prepared.route:
+                yield _sse("route", {"route": prepared.route})
+
+            chunks: list[str] = []
+            for token in rag_service.stream_answer(prepared.prompt):
+                chunks.append(token)
+                yield _sse("token", {"token": token})
+
+            final_answer = rag_service.finalize_answer("".join(chunks), prepared.citations)
+            if final_answer != "".join(chunks):
+                suffix = final_answer[len("".join(chunks)):]
+                if suffix:
+                    yield _sse("token", {"token": suffix})
+
+            citations = [
+                {
+                    "case_name": citation.case_name,
+                    "url": citation.url,
+                    "relevance_score": citation.relevance_score,
+                    "source_type": citation.source_type,
+                    "label": citation.label,
+                }
+                for citation in prepared.citations
+            ]
+            yield _sse("citations", {"citations": citations})
+            yield _sse("done", {"done": True})
+        except Exception as exc:
+            yield _sse("error", {"message": str(exc)})
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
