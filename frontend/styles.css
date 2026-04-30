@@ -2079,6 +2079,42 @@ body.onboarding-view .action-bar {
   margin-top: 12px;
 }
 
+.research-typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+}
+
+.research-typing-indicator span {
+  color: #64748b;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+  animation: researchTypingPulse 900ms ease-in-out infinite;
+}
+
+.research-typing-indicator span:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.research-typing-indicator span:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+@keyframes researchTypingPulse {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  40% {
+    transform: translateY(-2px);
+    opacity: 1;
+  }
+}
+
 .research-markdown a {
   color: #1d4ed8;
   font-weight: 700;

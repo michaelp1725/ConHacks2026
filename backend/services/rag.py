@@ -1,7 +1,9 @@
 import os
 from dataclasses import dataclass
 import json
+import logging
 import re
+import time
 from urllib.parse import quote_plus
 from collections.abc import Iterator
 
@@ -11,6 +13,8 @@ from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from backend.services.classifier import QueryClassifier, QueryRoute
+
+logger = logging.getLogger(__name__)
 
 
 SYSTEM_PROMPT = PromptTemplate.from_template(
@@ -213,8 +217,11 @@ class SnowflakeRAGService:
             raise RuntimeError("RAG_TOP_K must be a positive integer.")
 
     def query(self, question: str, history: list[dict[str, str]] | None = None) -> RAGResult:
+        started_at = time.perf_counter()
         if self._is_history_transform_request(question, history):
-            return self._answer_from_history(question, history or [])
+            result = self._answer_from_history(question, history or [])
+            logger.info("chat.query history_transform duration_ms=%d", int((time.perf_counter() - started_at) * 1000))
+            return result
 
         research_question = self._standalone_question(question, history)
         route = self.classifier.classify(research_question, history)
@@ -254,7 +261,14 @@ class SnowflakeRAGService:
             question=research_question,
         )
         raw = str(self.llm.invoke(prompt).content).strip()
-        return self._parse_structured_response(raw, citations, route.value)
+        result = self._parse_structured_response(raw, citations, route.value)
+        logger.info(
+            "chat.query route=%s citations=%d duration_ms=%d",
+            route.value,
+            len(result.citations),
+            int((time.perf_counter() - started_at) * 1000),
+        )
+        return result
 
     def prepare_stream_query(self, question: str, history: list[dict[str, str]] | None = None) -> RAGPreparedQuery:
         """Like query() but builds a prose prompt for token-by-token streaming."""
