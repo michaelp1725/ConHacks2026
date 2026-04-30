@@ -1545,23 +1545,6 @@ body.onboarding-view .action-bar {
   font-weight: 500;
 }
 
-.research-chat-header-actions {
-  justify-self: end;
-}
-
-.research-chat-status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  border: 1px solid rgba(0, 82, 255, 0.28);
-  background: rgba(0, 82, 255, 0.08);
-  color: #004ce5;
-  border-radius: 999px;
-  padding: 7px 12px;
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
 .research-chat-shell {
   width: min(1500px, 100%);
   height: calc(100vh - 118px);
@@ -2043,7 +2026,7 @@ body.onboarding-view .action-bar {
   }
 
   .research-chat-header {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr;
     min-height: 0;
     padding: 10px;
     gap: 10px;
@@ -2055,14 +2038,9 @@ body.onboarding-view .action-bar {
   }
 
   .research-chat-title {
-    grid-column: 1 / -1;
-    grid-row: 2;
+    grid-column: 1;
+    grid-row: auto;
     text-align: left;
-  }
-
-  .research-chat-header-actions {
-    grid-column: 2;
-    grid-row: 1;
   }
 
   .research-chat-shell {
