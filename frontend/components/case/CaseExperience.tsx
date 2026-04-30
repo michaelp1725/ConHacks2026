@@ -149,6 +149,41 @@ export function CaseExperience() {
     router.push("/chat");
   };
 
+  const onLogin = () => {
+    router.push("/login");
+  };
+
+  const onScrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const onScrollToSection = useCallback((sectionId: string) => {
+    const target = document.getElementById(sectionId);
+    if (!target) return;
+    const topbar = document.querySelector(".landing-topbar") as HTMLElement | null;
+    const topbarOffset = topbar ? topbar.getBoundingClientRect().height : 0;
+    const top = target.getBoundingClientRect().top + window.scrollY - topbarOffset + 8;
+    window.scrollTo({ top, behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated || !showOnboarding) return;
+
+    const pendingSection = window.sessionStorage.getItem("landingTargetSection");
+    const hashSection = window.location.hash.replace("#", "");
+    const targetSection = pendingSection || hashSection;
+    if (!targetSection) return;
+
+    const rafId = window.requestAnimationFrame(() => {
+      onScrollToSection(targetSection);
+      if (pendingSection) {
+        window.sessionStorage.removeItem("landingTargetSection");
+      }
+    });
+
+    return () => window.cancelAnimationFrame(rafId);
+  }, [hydrated, onScrollToSection, showOnboarding]);
+
   const onSample = () => {
     setQuery(
       "I received an eviction notice after requesting urgent repairs for mold and water damage."
@@ -210,25 +245,43 @@ export function CaseExperience() {
       <div className="ambient" />
       <div className="page">
         <header className="landing-topbar" aria-label="Account actions">
-          <div className="landing-brand">
+          <button type="button" className="landing-brand landing-brand-button" onClick={onScrollToTop}>
             <img
               src="/assets/case-logo.png"
               alt="Case logo"
               className="landing-logo"
             />
             <small>Legal research, redefined.</small>
-          </div>
+          </button>
           <nav className="landing-nav" aria-label="Primary">
-            <a href="#onboarding">Product</a>
-            <a href="#landing-features">Features</a>
-            <a href="#landing-pricing">Pricing</a>
-            <a href="#landing-about">About</a>
+            <button type="button" className="landing-nav-link" onClick={() => onScrollToSection("onboarding")}>
+              Product
+            </button>
+            <button
+              type="button"
+              className="landing-nav-link"
+              onClick={() => onScrollToSection("landing-features")}
+            >
+              Features
+            </button>
+            <button
+              type="button"
+              className="landing-nav-link"
+              onClick={() => onScrollToSection("landing-pricing")}
+            >
+              Pricing
+            </button>
+            <button type="button" className="landing-nav-link" onClick={() => onScrollToSection("landing-about")}>
+              About
+            </button>
           </nav>
           <div className="landing-auth-actions">
-            <button type="button" className="secondary">
+            <button type="button" className="secondary" onClick={onLogin}>
               Log in
             </button>
-            <button type="button">Sign up</button>
+            <button type="button" onClick={() => router.push("/signup")}>
+              Sign up
+            </button>
           </div>
         </header>
 
@@ -255,11 +308,11 @@ export function CaseExperience() {
                 <div className="hero-visual" aria-hidden="true">
                   <div className="hero-ring" />
                   <div className="hero-card hero-card-a">
-                    <strong>Issue Summary</strong>
-                    <span>Retaliatory eviction angle detected</span>
+                    <strong>Virtual Lawyer</strong>
+                    <span>Plain-language strategy for your legal issue</span>
                   </div>
                   <div className="hero-card hero-card-b">
-                    <strong>Authorities</strong>
+                    <strong>Legal Source Backing</strong>
                     <span>2 statutes + 1 case linked</span>
                   </div>
                   <div className="hero-corner-pill">LIVE ANALYSIS</div>
@@ -275,7 +328,7 @@ export function CaseExperience() {
               </p>
               <div className="landing-grid">
                 <article className="landing-mini-card feature-card" tabIndex={0}>
-                  <h3>We find the precedent.</h3>
+                  <h3>We know the law.</h3>
                   <p>
                     You tell us what happened. We pull the cases and rules that
                     actually matter.
@@ -467,7 +520,7 @@ export function CaseExperience() {
                   <p>
                     CS Student at UW. Loves playing spikeball and grinding leetcode. Spending the semester focusing on
                     spending less time on school and more time on fun sidequests. Loves all food and is always looking to
-                    eat. But the best cuisine has to be Italian food.
+                    go eat.
                   </p>
                   <a
                     className="team-link"
@@ -480,7 +533,7 @@ export function CaseExperience() {
                 </article>
               </div>
             </section>
-            <p className="landing-footer-note">MEN Corp. | 2026</p>
+            <p className="landing-footer-note">MEN Corporation Ltd.</p>
 
         <section id="app-shell" className={showOnboarding ? "hidden" : undefined}>
           <header className="topbar">

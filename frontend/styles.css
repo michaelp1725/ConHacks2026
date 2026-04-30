@@ -66,10 +66,14 @@ body.onboarding-view {
   align-items: center;
   margin-bottom: 6px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.28);
-  background: transparent;
+  background: var(--bg);
+  backdrop-filter: none;
   padding: 3px 2px 5px;
   box-shadow: none;
   min-height: 4.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 30;
 }
 
 .landing-brand {
@@ -80,6 +84,39 @@ body.onboarding-view {
   gap: 3px;
   justify-self: start;
   min-height: 0;
+}
+
+.landing-brand-button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  box-shadow: none;
+  transform: none;
+  filter: none;
+}
+
+.landing-brand-button:hover,
+.landing-brand-button:active {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  transform: none;
+  filter: none;
+}
+
+.landing-brand-button:focus,
+.landing-brand-button:focus-visible {
+  outline: none;
+  border: 0;
+  box-shadow: none;
 }
 
 .landing-brand small {
@@ -133,8 +170,42 @@ body.onboarding-view {
   transition: color 180ms ease;
 }
 
+.landing-nav-link {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  text-decoration: none;
+  color: #6b7280;
+  font-size: 0.89rem;
+  font-weight: 600;
+  line-height: 1.15;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  transition: color 180ms ease;
+}
+
 .landing-nav a:hover {
   color: #0f172a;
+}
+
+.landing-nav-link:hover {
+  color: #0f172a;
+  filter: none;
+  transform: none;
+}
+
+.landing-nav-link:focus,
+.landing-nav-link:focus-visible,
+.landing-nav-link:active {
+  outline: none;
+  box-shadow: none;
+  border: 0;
+  background: transparent;
+  transform: none;
 }
 
 .landing-auth-actions .secondary {
@@ -295,7 +366,7 @@ body.onboarding-view {
 body.onboarding-view .page {
   min-height: auto;
   display: block;
-  padding-top: 10px;
+  padding-top: 0;
   padding-bottom: 72px;
 }
 
@@ -921,9 +992,10 @@ body.onboarding-view .onboarding::before {
   border-radius: 16px;
   padding: 16px 18px;
   box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
-  text-align: left;
+  text-align: center;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 6px;
   backface-visibility: hidden;
 }
