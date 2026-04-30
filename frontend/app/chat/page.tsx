@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useState } from "react";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ChatMessage } from "@/components/chat/ChatMessage";
-import { streamChatQuery } from "@/lib/api";
+import { sendChatQuery } from "@/lib/api";
 import type { ChatMessage as ChatMessageModel } from "@/types/chat";
 
 export default function ChatPage() {
@@ -30,31 +30,15 @@ export default function ChatPage() {
     ]);
     setIsLoading(true);
 
-    let assistantContent = "";
-
     try {
-      await streamChatQuery(query, {
-        onToken: (token) => {
-          assistantContent += token;
-          setMessages((prev) => {
-            const next = [...prev];
-            const i = next.findIndex((m) => m.id === assistantId);
-            if (i >= 0) {
-              next[i] = { ...next[i], content: assistantContent };
-            }
-            return next;
-          });
-        },
-        onCitations: (citations) => {
-          setMessages((prev) => {
-            const next = [...prev];
-            const i = next.findIndex((m) => m.id === assistantId);
-            if (i >= 0) {
-              next[i] = { ...next[i], citations };
-            }
-            return next;
-          });
-        },
+      const result = await sendChatQuery(query);
+      setMessages((prev) => {
+        const next = [...prev];
+        const i = next.findIndex((m) => m.id === assistantId);
+        if (i >= 0) {
+          next[i] = { ...next[i], content: result.answer, citations: result.citations };
+        }
+        return next;
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Request failed.";
@@ -93,8 +77,7 @@ export default function ChatPage() {
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
           {messages.length === 0 ? (
             <p className="text-center text-sm text-slate-500">
-              Ask a question about Canadian refugee law. Answers stream in as
-              they are generated.
+              Ask a question about Canadian refugee law.
             </p>
           ) : (
             messages.map((message) => (

@@ -3,7 +3,6 @@ from dataclasses import dataclass
 import json
 import re
 from urllib.parse import quote_plus
-from collections.abc import Iterator
 
 import snowflake.connector
 from dotenv import load_dotenv
@@ -126,12 +125,6 @@ class SnowflakeRAGService:
             question=question,
         )
         return RAGPreparedQuery(prompt=prompt, citations=citations)
-
-    def stream_answer(self, prompt: str) -> Iterator[str]:
-        for chunk in self.llm.stream(prompt):
-            content = chunk.content
-            if isinstance(content, str) and content:
-                yield content
 
     def finalize_answer(self, answer: str, citations: list[RetrievedCitation]) -> str:
         return self._with_references(answer, citations)
