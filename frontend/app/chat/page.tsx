@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { sendChatQuery, type HistoryMessage } from "@/lib/api";
@@ -93,9 +93,11 @@ export default function ChatPage() {
     initialThreads.sort(
       (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
-    setThreads(initialThreads);
-    setActiveThreadId(initialThreads[0]?.id ?? null);
-    setHydrated(true);
+    startTransition(() => {
+      setThreads(initialThreads);
+      setActiveThreadId(initialThreads[0]?.id ?? null);
+      setHydrated(true);
+    });
   }, []);
 
   useEffect(() => {
@@ -108,7 +110,7 @@ export default function ChatPage() {
     () => threads.find((thread) => thread.id === activeThreadId) ?? threads[0],
     [activeThreadId, threads]
   );
-  const messages = activeThread?.messages ?? [];
+  const messages = useMemo(() => activeThread?.messages ?? [], [activeThread]);
 
   const onNewThread = () => {
     if (isLoading) return;
@@ -122,6 +124,28 @@ export default function ChatPage() {
     if (isLoading) return;
     setActiveThreadId(threadId);
     setInput("");
+  };
+
+  const onDeleteThread = (threadId: string) => {
+    if (isLoading) return;
+
+    setThreads((prev) => {
+      const next = prev.filter((thread) => thread.id !== threadId);
+
+      if (!next.length) {
+        const replacement = createThread();
+        setActiveThreadId(replacement.id);
+        setInput("");
+        return [replacement];
+      }
+
+      if (threadId === activeThreadId) {
+        setActiveThreadId(next[0].id);
+        setInput("");
+      }
+
+      return next;
+    });
   };
 
   const handleSubmit = useCallback(async () => {
@@ -261,22 +285,36 @@ export default function ChatPage() {
 
           <div className="research-chat-list">
             {threads.map((thread) => (
-              <button
+              <div
                 key={thread.id}
-                type="button"
-                className={`research-chat-thread ${
+                className={`research-chat-thread-row ${
                   thread.id === activeThread.id ? "active" : ""
                 }`.trim()}
-                onClick={() => onSelectThread(thread.id)}
-                disabled={isLoading && thread.id !== activeThread.id}
               >
-                <span className="research-thread-title">{thread.title}</span>
-                <span className="research-thread-meta">
-                  {thread.messages.length
-                    ? `${thread.messages.length} messages - ${formatThreadTime(thread.updatedAt)}`
-                    : "Draft"}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  className="research-chat-thread"
+                  onClick={() => onSelectThread(thread.id)}
+                  disabled={isLoading && thread.id !== activeThread.id}
+                >
+                  <span className="research-thread-title">{thread.title}</span>
+                  <span className="research-thread-meta">
+                    {thread.messages.length
+                      ? `${thread.messages.length} messages - ${formatThreadTime(thread.updatedAt)}`
+                      : "Draft"}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="research-delete-thread"
+                  aria-label={`Delete chat: ${thread.title}`}
+                  title="Delete chat"
+                  onClick={() => onDeleteThread(thread.id)}
+                  disabled={isLoading}
+                >
+                  x
+                </button>
+              </div>
             ))}
           </div>
 

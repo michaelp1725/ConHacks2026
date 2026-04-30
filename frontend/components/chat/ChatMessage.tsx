@@ -1,5 +1,7 @@
-import { ChatMessage as ChatMessageType } from "@/types/chat";
+import { ChatMessage as ChatMessageType, Citation } from "@/types/chat";
 import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
+import { Children } from "react";
 
 type ChatMessageProps = {
   message: ChatMessageType;
@@ -19,8 +21,53 @@ const ROUTE_COLORS: Record<string, string> = {
   OUT_OF_SCOPE: "route-muted",
 };
 
+function renderTextWithCitationLinks(
+  value: string,
+  citationMap: Map<string, Citation>
+) {
+  const parts = value.split(/(\[S\d+\])/g);
+
+  return parts.map((part, index) => {
+    const label = part.match(/^\[(S\d+)\]$/)?.[1];
+    const citation = label ? citationMap.get(label) : undefined;
+
+    if (!citation?.url) {
+      return part;
+    }
+
+    return (
+      <a
+        key={`${label}-${index}`}
+        href={citation.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="research-inline-citation"
+        title={citation.case_name}
+      >
+        {part}
+      </a>
+    );
+  });
+}
+
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user";
+  const citationMap = new Map(
+    (message.citations || []).map((citation) => [citation.label, citation])
+  );
+  const markdownComponents: Components = {
+    p({ children }) {
+      return (
+        <p>
+          {Children.map(children, (child) =>
+            typeof child === "string"
+              ? renderTextWithCitationLinks(child, citationMap)
+              : child
+          )}
+        </p>
+      );
+    },
+  };
 
   return (
     <article className={`research-message-row ${isUser ? "user" : "assistant"}`}>
@@ -43,7 +90,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
             )}
 
             <div className="research-markdown">
-              <ReactMarkdown>{message.content}</ReactMarkdown>
+              <ReactMarkdown components={markdownComponents}>
+                {message.content}
+              </ReactMarkdown>
             </div>
 
             {message.checklist && message.checklist.length > 0 && (
@@ -94,7 +143,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                 <div className="research-sources">
                   {cases.length > 0 && (
                     <div>
-                      <p>Case Law</p>
+                      <p>References: Case Law</p>
                       <div>
                         {renderBadges(cases, "case-source")}
                       </div>
@@ -102,7 +151,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                   )}
                   {laws.length > 0 && (
                     <div>
-                      <p>Legislation</p>
+                      <p>References: Legislation</p>
                       <div>
                         {renderBadges(laws, "law-source")}
                       </div>

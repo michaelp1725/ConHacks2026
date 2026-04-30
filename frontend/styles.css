@@ -1615,33 +1615,79 @@ body.onboarding-view .action-bar {
   padding-right: 2px;
 }
 
-.research-chat-thread {
-  width: 100%;
+.research-chat-thread-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 8px;
   border: 1px solid rgba(148, 163, 184, 0.28);
   background: #fff;
-  color: #0f172a;
   border-radius: 12px;
-  padding: 11px;
-  text-align: left;
-  box-shadow: none;
-  cursor: pointer;
+  padding: 4px;
   transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
 }
 
-.research-chat-thread:hover:not(:disabled) {
+.research-chat-thread-row:hover {
   border-color: rgba(37, 99, 235, 0.42);
   background: #f8fbff;
   transform: translateY(-1px);
 }
 
-.research-chat-thread.active {
+.research-chat-thread-row.active {
   border-color: rgba(37, 99, 235, 0.5);
   background: linear-gradient(180deg, rgba(37, 99, 235, 0.1), rgba(37, 99, 235, 0.04));
+}
+
+.research-chat-thread {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  border-radius: 8px;
+  padding: 7px;
+  text-align: left;
+  box-shadow: none;
+  cursor: pointer;
+  transition: background 180ms ease;
+}
+
+.research-chat-thread:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .research-chat-thread:disabled {
   cursor: not-allowed;
   opacity: 0.68;
+}
+
+.research-delete-thread {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: #94a3b8;
+  box-shadow: none;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.research-delete-thread:hover:not(:disabled),
+.research-delete-thread:focus-visible {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.research-delete-thread:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .research-thread-title,
