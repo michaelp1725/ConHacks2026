@@ -42,6 +42,9 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessageModel[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const activeChatTitle =
+    messages.find((message) => message.role === "user")?.content.slice(0, 56) ||
+    "New refugee law research";
 
   const handleSubmit = useCallback(async () => {
     const query = input.trim();
@@ -100,39 +103,121 @@ export default function ChatPage() {
   }, [input, isLoading, messages]);
 
   return (
-    <div className="flex min-h-[calc(100vh-0px)] flex-col bg-slate-50">
-      <header className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <Link
-          href="/"
-          className="text-sm font-medium text-blue-700 hover:text-blue-900"
-        >
-          Back to home
+    <div className="research-chat-page">
+      <header className="research-chat-header">
+        <Link href="/" className="research-chat-brand" aria-label="Back to Case home">
+          <img src="/assets/case-logo.png" alt="Case" />
         </Link>
-        <h1 className="text-center text-sm font-semibold text-slate-800 sm:text-base">
-          Refugee law research chat
-        </h1>
-        <span className="w-24 sm:w-32" aria-hidden="true" />
+        <div className="research-chat-title">
+          <p>Refugee law workspace</p>
+          <h1>Research chat</h1>
+        </div>
+        <div className="research-chat-header-actions">
+          <span className="research-chat-status">
+            {isLoading ? "Researching" : "Ready"}
+          </span>
+        </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 overflow-hidden px-4 py-6">
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
-          {messages.length === 0 ? (
-            <p className="text-center text-sm text-slate-500">
-              Ask a question about Canadian refugee law.
-            </p>
-          ) : (
-            messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
-            ))
-          )}
-        </div>
+      <main className="research-chat-shell">
+        <aside className="research-chat-sidebar" aria-label="Past chats">
+          <div className="research-sidebar-head">
+            <div>
+              <p>Threads</p>
+              <h2>Past chats</h2>
+            </div>
+            <button type="button" aria-label="Start new chat" disabled>
+              +
+            </button>
+          </div>
 
-        <ChatInput
-          value={input}
-          isLoading={isLoading}
-          onChange={setInput}
-          onSubmit={handleSubmit}
-        />
+          <div className="research-chat-list">
+            <button type="button" className="research-chat-thread active">
+              <span className="research-thread-title">{activeChatTitle}</span>
+              <span className="research-thread-meta">
+                {messages.length ? `${messages.length} messages` : "Draft"}
+              </span>
+            </button>
+            <button type="button" className="research-chat-thread" disabled>
+              <span className="research-thread-title">Religion based persecution</span>
+              <span className="research-thread-meta">Coming soon</span>
+            </button>
+            <button type="button" className="research-chat-thread" disabled>
+              <span className="research-thread-title">State protection analysis</span>
+              <span className="research-thread-meta">Coming soon</span>
+            </button>
+            <button type="button" className="research-chat-thread" disabled>
+              <span className="research-thread-title">Internal flight alternative</span>
+              <span className="research-thread-meta">Coming soon</span>
+            </button>
+          </div>
+
+          <div className="research-sidebar-note">
+            <strong>History support</strong>
+            <span>Current thread memory is active. Thread switching will plug into this list later.</span>
+          </div>
+        </aside>
+
+        <section className="research-chat-main" aria-label="Research chat">
+          <div className="research-chat-main-head">
+            <div>
+              <p>Ask in plain language</p>
+              <h2>Canadian refugee law research</h2>
+            </div>
+            <div className="research-chat-chips" aria-label="Research modes">
+              <span>Case law</span>
+              <span>Legislation</span>
+              <span>Evidence</span>
+            </div>
+          </div>
+
+          <div className="research-chat-transcript">
+            {messages.length === 0 ? (
+              <div className="research-empty-state">
+                <p>Start with a refugee law issue, claimant profile, or hearing question.</p>
+                <div className="research-samples" aria-label="Sample prompts">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setInput("fear of persecution based on religion for a Christian convert from Iran")
+                    }
+                  >
+                    Religious persecution
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setInput("how does the RPD assess state protection in refugee claims?")
+                    }
+                  >
+                    State protection
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setInput("what evidence should support an internal flight alternative argument?")
+                    }
+                  >
+                    IFA evidence
+                  </button>
+                </div>
+              </div>
+            ) : (
+              messages.map((message) => (
+                <ChatMessage key={message.id} message={message} />
+              ))
+            )}
+          </div>
+
+          <div className="research-chat-composer">
+            <ChatInput
+              value={input}
+              isLoading={isLoading}
+              onChange={setInput}
+              onSubmit={handleSubmit}
+            />
+          </div>
+        </section>
       </main>
     </div>
   );

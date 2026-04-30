@@ -13,51 +13,46 @@ const ROUTE_LABELS: Record<string, string> = {
 };
 
 const ROUTE_COLORS: Record<string, string> = {
-  CASE_SEARCH: "bg-blue-50 text-blue-700 border-blue-200",
-  LAW_SEARCH: "bg-purple-50 text-purple-700 border-purple-200",
-  BOTH: "bg-teal-50 text-teal-700 border-teal-200",
-  OUT_OF_SCOPE: "bg-slate-50 text-slate-500 border-slate-200",
+  CASE_SEARCH: "route-case",
+  LAW_SEARCH: "route-law",
+  BOTH: "route-both",
+  OUT_OF_SCOPE: "route-muted",
 };
 
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user";
 
   return (
-    <article className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`max-w-3xl rounded-2xl px-4 py-3 shadow-sm ${
-          isUser
-            ? "bg-blue-700 text-white"
-            : "border border-slate-200 bg-white text-slate-800"
-        }`}
-      >
+    <article className={`research-message-row ${isUser ? "user" : "assistant"}`}>
+      <div className="research-message-avatar" aria-hidden="true">
+        {isUser ? "You" : "C"}
+      </div>
+      <div className="research-message-bubble">
         {isUser ? (
-          <p className="whitespace-pre-wrap leading-7">{message.content}</p>
+          <p>{message.content}</p>
         ) : (
           <>
             {message.route && (
               <span
-                className={`mb-3 inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                  ROUTE_COLORS[message.route] ?? "bg-slate-50 text-slate-500 border-slate-200"
+                className={`research-route-badge ${
+                  ROUTE_COLORS[message.route] ?? "route-muted"
                 }`}
               >
                 {ROUTE_LABELS[message.route] ?? message.route}
               </span>
             )}
 
-            <div className="prose prose-sm max-w-none whitespace-pre-wrap leading-7 prose-a:text-blue-700 hover:prose-a:text-blue-800">
+            <div className="research-markdown">
               <ReactMarkdown>{message.content}</ReactMarkdown>
             </div>
 
             {message.checklist && message.checklist.length > 0 && (
-              <div className="mt-4">
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Evidence Checklist
-                </p>
-                <ul className="space-y-1">
+              <div className="research-answer-section">
+                <p>Evidence Checklist</p>
+                <ul>
                   {message.checklist.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                      <span className="mt-0.5 text-blue-500">✓</span>
+                    <li key={i}>
+                      <span aria-hidden="true">✓</span>
                       {item}
                     </li>
                   ))}
@@ -66,14 +61,12 @@ export function ChatMessage({ message }: ChatMessageProps) {
             )}
 
             {message.next_steps && message.next_steps.length > 0 && (
-              <div className="mt-4">
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Next Steps
-                </p>
-                <ol className="space-y-1 list-none">
+              <div className="research-answer-section">
+                <p>Next Steps</p>
+                <ol>
                   {message.next_steps.map((step, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                      <span className="min-w-[1.25rem] font-semibold text-blue-600">{i + 1}.</span>
+                    <li key={i}>
+                      <span>{i + 1}.</span>
                       {step}
                     </li>
                   ))}
@@ -84,34 +77,34 @@ export function ChatMessage({ message }: ChatMessageProps) {
             {message.citations && message.citations.length > 0 && (() => {
               const cases = message.citations.filter(c => c.source_type === "case");
               const laws = message.citations.filter(c => c.source_type === "law");
-              const renderBadges = (items: typeof message.citations, color: string) =>
+              const renderBadges = (items: typeof message.citations, className: string) =>
                 items!.map((citation, index) => (
                   <a
                     key={`${message.id}-${citation.source_type}-${index}`}
                     href={citation.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`rounded-full border px-3 py-1 text-xs transition ${color}`}
+                    className={`research-source-pill ${className}`}
                     title={citation.case_name}
                   >
                     [{citation.label}] {citation.case_name}
                   </a>
                 ));
               return (
-                <div className="mt-4 space-y-3">
+                <div className="research-sources">
                   {cases.length > 0 && (
                     <div>
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Case Law</p>
-                      <div className="flex flex-wrap gap-2">
-                        {renderBadges(cases, "border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100")}
+                      <p>Case Law</p>
+                      <div>
+                        {renderBadges(cases, "case-source")}
                       </div>
                     </div>
                   )}
                   {laws.length > 0 && (
                     <div>
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Legislation</p>
-                      <div className="flex flex-wrap gap-2">
-                        {renderBadges(laws, "border-purple-200 bg-purple-50 text-purple-900 hover:bg-purple-100")}
+                      <p>Legislation</p>
+                      <div>
+                        {renderBadges(laws, "law-source")}
                       </div>
                     </div>
                   )}
@@ -120,7 +113,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
             })()}
 
             {message.disclaimer && (
-              <p className="mt-4 text-xs italic text-slate-400">{message.disclaimer}</p>
+              <p className="research-disclaimer">{message.disclaimer}</p>
             )}
           </>
         )}
