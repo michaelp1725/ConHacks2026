@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   startTransition,
   useCallback,
@@ -37,6 +38,7 @@ function LandingSectionHeading({ children }: { children: React.ReactNode }) {
 }
 
 export function CaseExperience() {
+  const router = useRouter();
   const queryRef = useRef<HTMLTextAreaElement>(null);
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [query, setQuery] = useState("");
@@ -144,13 +146,7 @@ export function CaseExperience() {
   };
 
   const onGetStarted = () => {
-    setShowOnboarding(false);
-    const current = chats.find((c) => c.id === activeChatId);
-    if (current?.data) {
-      applyResults(current.data);
-      setStatusText("Loaded most recent case.");
-    }
-    queueMicrotask(() => queryRef.current?.focus());
+    router.push("/chat");
   };
 
   const onSample = () => {
