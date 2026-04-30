@@ -25,28 +25,33 @@ function renderTextWithCitationLinks(
   value: string,
   citationMap: Map<string, Citation>
 ) {
-  const parts = value.split(/(\[S\d+\])/g);
+  const parts = value.split(/(\[(?:S\d+(?:,\s*)?)+\])/g);
 
   return parts.map((part, index) => {
-    const label = part.match(/^\[(S\d+)\]$/)?.[1];
-    const citation = label ? citationMap.get(label) : undefined;
-
-    if (!citation?.url) {
+    if (!/^\[(?:S\d+(?:,\s*)?)+\]$/.test(part)) {
       return part;
     }
 
-    return (
-      <a
-        key={`${label}-${index}`}
-        href={citation.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="research-inline-citation"
-        title={citation.case_name}
-      >
-        {part}
-      </a>
-    );
+    return part.split(/(S\d+)/g).map((citationPart, citationIndex) => {
+      const citation = citationMap.get(citationPart);
+
+      if (!citation?.url) {
+        return citationPart;
+      }
+
+      return (
+        <a
+          key={`${citationPart}-${index}-${citationIndex}`}
+          href={citation.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="research-inline-citation"
+          title={citation.case_name}
+        >
+          {citationPart}
+        </a>
+      );
+    });
   });
 }
 
