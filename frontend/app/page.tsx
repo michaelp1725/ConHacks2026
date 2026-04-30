@@ -1,11 +1,11 @@
-import Script from "next/script";
+import { BodyOnboardingView } from "@/components/legacy/BodyOnboardingView";
 import { LegacyHomeMarkup } from "@/components/legacy/LegacyHomeMarkup";
 
 export default function Home() {
   return (
     <>
+      <BodyOnboardingView />
       <LegacyHomeMarkup />
-      <Script src="/app.js" strategy="afterInteractive" />
     </>
   );
 }

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function LegacyHomeMarkup() {
   return (
     <>
@@ -35,9 +37,9 @@ export function LegacyHomeMarkup() {
             case plan in under a minute.
           </p>
           <div className="onboarding-cta-row">
-            <button id="get-started-btn" type="button">
+            <Link href="/chat" id="get-started-btn">
               Get Started
-            </button>
+            </Link>
           </div>
           <p className="onboarding-help">
             No legal jargon required. You can refine and re-run anytime.
@@ -281,198 +283,6 @@ export function LegacyHomeMarkup() {
           </div>
         </section>
         <p className="landing-footer-note">MEN Corp. | 2026</p>
-
-        <section id="app-shell" className="hidden">
-          <header className="topbar">
-            <div className="brand">
-              <img
-                src="/assets/case-logo.png"
-                alt="Case logo"
-                className="app-logo"
-              />
-            </div>
-            <span className="badge">Where law meets clarity.</span>
-          </header>
-
-          <main className="app-layout">
-            <aside className="sidebar panel">
-              <div className="sidebar-head">
-                <h2>Chats</h2>
-                <button type="button" id="new-chat-btn" className="secondary">
-                  New
-                </button>
-              </div>
-              <div id="chat-list" className="chat-list" />
-            </aside>
-
-            <section className="panel workspace">
-              <header className="hero">
-                <p className="eyebrow">Ask in plain language</p>
-                <h1>Build your case with source-backed legal guidance</h1>
-                <p className="subtitle">
-                  Explain your issue once. Get structured arguments, citations, and
-                  next steps you can use immediately.
-                </p>
-                <div className="hero-fun-row" aria-hidden="true">
-                  <div className="mascot-group">
-                    <div className="mascot mascot-blue">
-                      <span className="mascot-eye left" />
-                      <span className="mascot-eye right" />
-                      <span className="mascot-smile" />
-                    </div>
-                    <div className="mascot mascot-navy">
-                      <span className="mascot-eye left" />
-                      <span className="mascot-eye right" />
-                      <span className="mascot-smile" />
-                    </div>
-                  </div>
-                  <div className="hero-pills">
-                    <span className="hero-pill">clear summaries</span>
-                    <span className="hero-pill">strong citations</span>
-                    <span className="hero-pill">less panic</span>
-                  </div>
-                </div>
-              </header>
-
-              <form id="ask-form">
-                <textarea
-                  id="query"
-                  name="query"
-                  rows={6}
-                  placeholder="I received an eviction notice after requesting urgent repairs for mold and water damage."
-                  required
-                />
-                <div className="actions">
-                  <button type="submit" id="submit-btn">
-                    Build My Case Strategy
-                  </button>
-                  <button type="button" id="sample-btn" className="secondary">
-                    Try Sample Prompt
-                  </button>
-                </div>
-              </form>
-              <p id="status-text" className="status" aria-live="polite" />
-
-              <section id="results" className="results hidden">
-                <div className="result-head">
-                  <h2>Case Output</h2>
-                </div>
-                <div className="result-meta">
-                  <span id="result-counts" className="meta-pill">
-                    0 sources
-                  </span>
-                </div>
-
-                <div className="stack">
-                  <article className="card emphasis">
-                    <div className="card-head">
-                      <h3>Case Snapshot</h3>
-                      <button
-                        type="button"
-                        className="secondary copy-section-btn"
-                        data-copy-target="case-snapshot"
-                        data-copy-title="Case Snapshot"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    <p id="explanation" />
-                    <ul id="principles" />
-                  </article>
-
-                  <article className="card">
-                    <div className="card-head">
-                      <h3>Recommended Actions</h3>
-                      <button
-                        type="button"
-                        className="secondary copy-section-btn"
-                        data-copy-target="next-steps"
-                        data-copy-title="Recommended Actions"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    <ul id="next-steps" />
-                  </article>
-
-                  <article className="card">
-                    <div className="card-head">
-                      <h3>Evidence to Prepare</h3>
-                      <button
-                        type="button"
-                        className="secondary copy-section-btn"
-                        data-copy-target="checklist"
-                        data-copy-title="Evidence to Prepare"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    <ul id="checklist" />
-                  </article>
-
-                  <article className="card">
-                    <div className="card-head">
-                      <h3>Authorities to Reference</h3>
-                      <button
-                        type="button"
-                        className="secondary copy-section-btn"
-                        data-copy-target="authorities"
-                        data-copy-title="Authorities to Reference"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    <div id="authorities" />
-                  </article>
-
-                  <article className="card">
-                    <div className="card-head">
-                      <h3>Source Library</h3>
-                      <button
-                        type="button"
-                        className="secondary copy-section-btn"
-                        data-copy-target="sources"
-                        data-copy-title="Source Library"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    <div id="citations" />
-                  </article>
-
-                  <article className="card disclaimer">
-                    <div className="card-head">
-                      <h3>Disclaimer</h3>
-                      <button
-                        type="button"
-                        className="secondary copy-section-btn"
-                        data-copy-target="disclaimer"
-                        data-copy-title="Disclaimer"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    <p id="disclaimer" />
-                  </article>
-                </div>
-              </section>
-            </section>
-          </main>
-        </section>
-      </div>
-      <div id="action-bar" className="action-bar hidden">
-        <p id="action-status">Ready to refine your case.</p>
-        <div className="action-buttons">
-          <button type="button" id="copy-checklist-btn" className="secondary">
-            Copy Evidence Checklist
-          </button>
-          <button type="button" id="copy-next-steps-btn" className="secondary">
-            Copy Next Steps
-          </button>
-          <button type="button" id="refine-btn">
-            Refine My Question
-          </button>
-        </div>
       </div>
     </>
   );

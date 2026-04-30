@@ -54,23 +54,27 @@ body.onboarding-view {
 .landing-topbar {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
-  align-items: center;
+  align-items: stretch;
   margin-bottom: 8px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.28);
   background: transparent;
-  padding: 5px 2px 7px;
+  padding: 10px 12px;
   box-shadow: none;
+  min-height: 4.5rem;
 }
 
 .landing-brand {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  justify-content: center;
   gap: 3px;
   justify-self: start;
+  min-height: 0;
 }
 
 .landing-brand small {
+  margin: 0;
   font-size: 0.7rem;
   color: #64748b;
   font-weight: 500;
@@ -90,6 +94,7 @@ body.onboarding-view {
   align-items: center;
   gap: 8px;
   justify-self: end;
+  align-self: stretch;
 }
 
 .landing-auth-actions button {
@@ -105,6 +110,7 @@ body.onboarding-view {
   justify-content: center;
   gap: 30px;
   justify-self: center;
+  align-self: stretch;
 }
 
 .landing-nav a {
@@ -112,6 +118,9 @@ body.onboarding-view {
   color: #6b7280;
   font-size: 0.89rem;
   font-weight: 600;
+  line-height: 1.15;
+  display: inline-flex;
+  align-items: center;
   transition: color 180ms ease;
 }
 
@@ -196,6 +205,27 @@ body.onboarding-view {
   min-height: 50px;
   padding: 12px 22px;
   font-size: 1rem;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1px solid rgba(0, 82, 255, 0.6);
+  background: linear-gradient(135deg, #0052ff 0%, #4d7cff 100%);
+  color: #fff;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+  box-shadow:
+    0 0 0 1px rgba(0, 82, 255, 0.2),
+    0 8px 22px rgba(0, 82, 255, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), filter 220ms ease-out;
+}
+
+#get-started-btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
 }
 
 .onboarding-help {
@@ -255,16 +285,8 @@ body.onboarding-view {
 body.onboarding-view .page {
   min-height: auto;
   display: block;
-  padding-top: 20px;
+  padding-top: 12px;
   padding-bottom: 72px;
-}
-
-body:not(.onboarding-view) .landing-topbar {
-  display: none;
-}
-
-body:not(.onboarding-view) .landing-section {
-  display: none;
 }
 
 .landing-section {
@@ -1483,6 +1505,7 @@ body.onboarding-view .action-bar {
   .landing-topbar {
     margin-bottom: 10px;
     grid-template-columns: 1fr auto;
+    align-items: stretch;
     gap: 8px;
     border-bottom-color: rgba(148, 163, 184, 0.24);
   }
