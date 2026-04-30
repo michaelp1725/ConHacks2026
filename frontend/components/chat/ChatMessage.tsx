@@ -57,6 +57,7 @@ function renderTextWithCitationLinks(
 
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user";
+  const isAssistantThinking = !isUser && !message.content.trim();
   const normalizedAssistantContent =
     !isUser && message.content.startsWith("**Something went wrong.**")
       ? message.content.replace("**Something went wrong.**", "Something went wrong.")
@@ -97,6 +98,16 @@ export function ChatMessage({ message }: ChatMessageProps) {
       <div className="research-message-bubble">
         {isUser ? (
           <p>{message.content}</p>
+        ) : isAssistantThinking ? (
+          <div
+            className="research-typing-indicator"
+            aria-live="polite"
+            aria-label="Assistant is thinking"
+          >
+            <span>.</span>
+            <span>.</span>
+            <span>.</span>
+          </div>
         ) : (
           <>
             {message.route && (
