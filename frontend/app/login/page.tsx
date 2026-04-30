@@ -3,8 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const ALLOWED_EMAIL = "m9parker@uwaterloo.ca";
-const ALLOWED_PASSWORD = "Michael123";
+const DEMO_PASSWORD = "Michael123";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,12 +13,14 @@ export default function LoginPage() {
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (email.trim().toLowerCase() === ALLOWED_EMAIL && password === ALLOWED_PASSWORD) {
+    const normalizedEmail = email.trim();
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (emailPattern.test(normalizedEmail)) {
       setError("");
       router.push("/chat");
       return;
     }
-    setError("Invalid login. Use the approved account.");
+    setError("Please enter a valid email address.");
   };
 
   const goToLanding = (sectionId: string) => {
@@ -28,8 +29,8 @@ export default function LoginPage() {
   };
 
   const onGuestAccess = () => {
-    setEmail(ALLOWED_EMAIL);
-    setPassword(ALLOWED_PASSWORD);
+    setEmail("guest@example.com");
+    setPassword(DEMO_PASSWORD);
     setError("");
     router.push("/chat");
   };

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { sendChatQuery, type HistoryMessage } from "@/lib/api";
@@ -19,7 +19,7 @@ type ChatThread = {
 function createThread(): ChatThread {
   return {
     id: crypto.randomUUID(),
-    title: "New refugee law research",
+    title: "New legal chat",
     messages: [],
     updatedAt: new Date().toISOString(),
   };
@@ -86,6 +86,9 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [isThreadSwitching, setIsThreadSwitching] = useState(false);
+  const previousActiveThreadId = useRef<string | null>(null);
+  const transcriptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const savedThreads = loadThreads();
@@ -111,6 +114,60 @@ export default function ChatPage() {
     [activeThreadId, threads]
   );
   const messages = useMemo(() => activeThread?.messages ?? [], [activeThread]);
+
+  useEffect(() => {
+    if (!hydrated || !activeThreadId) {
+      previousActiveThreadId.current = activeThreadId;
+      return;
+    }
+
+    const isInitialMount = previousActiveThreadId.current === null;
+    const didThreadChange = previousActiveThreadId.current !== activeThreadId;
+    previousActiveThreadId.current = activeThreadId;
+
+    if (isInitialMount || !didThreadChange) return;
+
+    setIsThreadSwitching(true);
+    const timeoutId = window.setTimeout(() => setIsThreadSwitching(false), 260);
+    return () => window.clearTimeout(timeoutId);
+  }, [activeThreadId, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const transcriptEl = transcriptRef.current;
+    if (!transcriptEl) return;
+
+    const rafId = window.requestAnimationFrame(() => {
+      const lastMessageRow = transcriptEl.querySelector(
+        ".research-message-row:last-child"
+      ) as HTMLElement | null;
+
+      if (!lastMessageRow) {
+        transcriptEl.scrollTo({ top: transcriptEl.scrollHeight, behavior: "smooth" });
+        return;
+      }
+
+      const rowTop = lastMessageRow.offsetTop;
+      const rowHeight = lastMessageRow.offsetHeight;
+      const viewportHeight = transcriptEl.clientHeight;
+
+      // If the latest message is very tall, anchor to its start so users can read from the top.
+      if (rowHeight > viewportHeight * 0.72) {
+        transcriptEl.scrollTo({
+          top: Math.max(rowTop - 12, 0),
+          behavior: "smooth",
+        });
+        return;
+      }
+
+      transcriptEl.scrollTo({
+        top: transcriptEl.scrollHeight,
+        behavior: "smooth",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(rafId);
+  }, [activeThreadId, hydrated, messages]);
 
   const onNewThread = () => {
     if (isLoading) return;
@@ -223,7 +280,8 @@ export default function ChatPage() {
         return next;
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Request failed.";
+      const rawMessage = err instanceof Error ? err.message : "Request failed";
+      const message = /[.!?]$/.test(rawMessage) ? rawMessage : `${rawMessage}.`;
       setThreads((prev) => {
         const next = prev.map((thread) => {
           if (thread.id !== submittedThreadId) return thread;
@@ -234,7 +292,7 @@ export default function ChatPage() {
               chatMessage.id === assistantId
                 ? {
                     ...chatMessage,
-                    content: `**Something went wrong.** ${message}`,
+                    content: `Something went wrong. ${message}`,
                   }
                 : chatMessage
             ),
@@ -256,18 +314,9 @@ export default function ChatPage() {
 
   return (
     <div className="research-chat-page">
-      <header className="research-chat-header">
-        <Link href="/" className="research-chat-brand" aria-label="Back to Case home">
-          <img src="/assets/case-logo.png" alt="Case" />
-        </Link>
-        <div className="research-chat-title">
-          <p>Refugee law workspace</p>
-          <h1>Research chat</h1>
-        </div>
-      </header>
-
-      <main className="research-chat-shell">
-        <aside className="research-chat-sidebar" aria-label="Past chats">
+      <div className="page research-chat-page-shell">
+        <main className="research-chat-shell">
+          <aside className="research-chat-sidebar" aria-label="Past chats">
           <div className="research-sidebar-head">
             <div>
               <p>Threads</p>
@@ -317,74 +366,73 @@ export default function ChatPage() {
               </div>
             ))}
           </div>
+          </aside>
 
-          <div className="research-sidebar-note">
-            <strong>History support</strong>
-            <span>Memory is scoped to the selected thread and saved in this browser.</span>
-          </div>
-        </aside>
-
-        <section className="research-chat-main" aria-label="Research chat">
-          <div className="research-chat-main-head">
-            <div>
-              <p>Ask in plain language</p>
-              <h2>Canadian refugee law research</h2>
-            </div>
-            <div className="research-chat-chips" aria-label="Research modes">
-              <span>Case law</span>
-              <span>Legislation</span>
-              <span>Evidence</span>
-            </div>
-          </div>
-
-          <div className="research-chat-transcript">
-            {messages.length === 0 ? (
-              <div className="research-empty-state">
-                <p>Start with a refugee law issue, claimant profile, or hearing question.</p>
-                <div className="research-samples" aria-label="Sample prompts">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setInput("fear of persecution based on religion for a Christian convert from Iran")
-                    }
-                  >
-                    Religious persecution
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setInput("how does the RPD assess state protection in refugee claims?")
-                    }
-                  >
-                    State protection
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setInput("what evidence should support an internal flight alternative argument?")
-                    }
-                  >
-                    IFA evidence
-                  </button>
-                </div>
+          <section
+            className={`research-chat-main ${isThreadSwitching ? "is-switching" : ""}`.trim()}
+            aria-label="Research chat"
+          >
+            <div className="research-chat-main-head">
+              <div>
+                <Link href="/" className="research-chat-inline-brand" aria-label="Back to Case home">
+                  <img src="/assets/case-logo.png" alt="Case" />
+                </Link>
               </div>
-            ) : (
-              messages.map((message) => (
-                <ChatMessage key={message.id} message={message} />
-              ))
-            )}
-          </div>
+              <Link href="/#landing-about" className="research-chat-disclaimer-link">
+                MEN Corp. Ltd. is NOT liable for any civil actions.
+              </Link>
+            </div>
 
-          <div className="research-chat-composer">
-            <ChatInput
-              value={input}
-              isLoading={isLoading}
-              onChange={setInput}
-              onSubmit={handleSubmit}
-            />
-          </div>
-        </section>
-      </main>
+            <div ref={transcriptRef} className="research-chat-transcript">
+              {messages.length === 0 ? (
+                <div className="research-empty-state">
+                  <p>Start with a refugee law issue, claimant profile, or hearing question.</p>
+                  <p className="research-samples-label">Try one of our sample prompts:</p>
+                  <div className="research-samples" aria-label="Sample prompts">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setInput("fear of persecution based on religion for a Christian convert from Iran")
+                      }
+                    >
+                      Religious persecution claim
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setInput("how does the RPD assess state protection in refugee claims?")
+                      }
+                    >
+                      State protection assessment
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setInput("what evidence should support an internal flight alternative argument?")
+                      }
+                    >
+                      Internal flight evidence
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                messages.map((message) => (
+                  <ChatMessage key={message.id} message={message} />
+                ))
+              )}
+            </div>
+
+            <div className="research-chat-composer">
+              <ChatInput
+                value={input}
+                isLoading={isLoading}
+                onChange={setInput}
+                onSubmit={handleSubmit}
+              />
+            </div>
+          </section>
+        </main>
+      </div>
     </div>
   );
 }
